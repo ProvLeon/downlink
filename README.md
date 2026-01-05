@@ -1,36 +1,288 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Downlink
 
-## Getting Started
+A lightweight, cross-platform desktop application for downloading online media using [yt-dlp](https://github.com/yt-dlp/yt-dlp) as the extraction/downloading engine.
 
-First, run the development server:
+![Downlink Screenshot](./docs/screenshot.png)
+
+## Features
+
+- **Paste → Preview → Download**: Simple, intuitive workflow
+- **Multi-URL Support**: Paste multiple URLs at once for batch downloads
+- **Playlist Expansion**: Automatically expands playlists into individual queue items
+- **Format Presets**: Quick selection of common formats (Best, 1080p MP4, Audio M4A, etc.)
+- **SponsorBlock Integration**: Remove sponsor segments from videos
+- **Subtitle Support**: Download and embed subtitles in multiple languages
+- **Queue Management**: Start, stop, resume, cancel, and retry downloads
+- **Progress Tracking**: Real-time progress with speed and ETA
+- **History**: Browse and re-download completed items
+- **Cross-Platform**: Runs on macOS, Windows, and Linux
+
+## Tech Stack
+
+- **Frontend**: Next.js 16 + React 19 + TypeScript + Tailwind CSS
+- **Backend**: Rust + Tauri 2
+- **Database**: SQLite (via rusqlite)
+- **Media Engine**: yt-dlp + ffmpeg (sidecar binaries)
+
+## Requirements
+
+- [Node.js](https://nodejs.org/) 18+
+- [Rust](https://www.rust-lang.org/tools/install) 1.77+
+- [yt-dlp](https://github.com/yt-dlp/yt-dlp#installation) (installed and in PATH)
+- [ffmpeg](https://ffmpeg.org/download.html) (optional, for merging/remuxing)
+
+## Development Setup
+
+### 1. Clone the repository
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone https://github.com/yourusername/downlink.git
+cd downlink
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 2. Install dependencies
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm install
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 3. Run in development mode
 
-## Learn More
+```bash
+npm run tauri dev
+```
 
-To learn more about Next.js, take a look at the following resources:
+This will start both the Next.js dev server and the Tauri development window.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### 4. Build for production
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+npm run tauri:build
+```
 
-## Deploy on Vercel
+Built applications will be in `src-tauri/target/release/bundle/`.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Building for Distribution
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### macOS
+
+**Prerequisites:**
+- Xcode Command Line Tools: `xcode-select --install`
+- Rust with macOS targets
+
+**Build commands:**
+```bash
+# Build for current architecture
+npm run tauri:build
+
+# Build for Apple Silicon (M1/M2/M3)
+npm run tauri:build -- --target aarch64-apple-darwin
+
+# Build for Intel Macs
+npm run tauri:build -- --target x86_64-apple-darwin
+
+# Build universal binary (both architectures)
+npm run tauri:build -- --target universal-apple-darwin
+```
+
+**Output files:**
+- `src-tauri/target/release/bundle/macos/Downlink.app` - Application bundle
+- `src-tauri/target/release/bundle/dmg/Downlink_0.1.0_*.dmg` - Disk image
+
+**Code Signing (for distribution):**
+```bash
+# Set your Apple Developer identity
+export APPLE_SIGNING_IDENTITY="Developer ID Application: Your Name (TEAMID)"
+export APPLE_ID="your@email.com"
+export APPLE_PASSWORD="app-specific-password"
+export APPLE_TEAM_ID="TEAMID"
+
+npm run tauri:build
+```
+
+### Windows
+
+**Prerequisites:**
+- Visual Studio Build Tools with C++ workload
+- Rust with Windows target
+- WebView2 (usually pre-installed on Windows 10/11)
+
+**Build commands:**
+```powershell
+# Build for 64-bit Windows
+npm run tauri:build
+
+# Build for 32-bit Windows (rare)
+npm run tauri:build -- --target i686-pc-windows-msvc
+```
+
+**Output files:**
+- `src-tauri/target/release/bundle/nsis/Downlink_0.1.0_x64-setup.exe` - NSIS installer
+- `src-tauri/target/release/bundle/msi/Downlink_0.1.0_x64_en-US.msi` - MSI installer
+
+**Code Signing (for distribution):**
+```powershell
+# Set certificate path and password
+$env:TAURI_PRIVATE_KEY = "path/to/private-key.key"
+$env:TAURI_KEY_PASSWORD = "your-password"
+
+npm run tauri:build
+```
+
+### Linux
+
+**Prerequisites:**
+```bash
+# Ubuntu/Debian
+sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget file \
+  libssl-dev libgtk-3-dev librsvg2-dev
+
+# Fedora
+sudo dnf install webkit2gtk4.1-devel openssl-devel gtk3-devel librsvg2-devel
+```
+
+**Build commands:**
+```bash
+npm run tauri:build
+```
+
+**Output files:**
+- `src-tauri/target/release/bundle/deb/downlink_0.1.0_amd64.deb` - Debian package
+- `src-tauri/target/release/bundle/rpm/downlink-0.1.0-1.x86_64.rpm` - RPM package
+- `src-tauri/target/release/bundle/appimage/downlink_0.1.0_amd64.AppImage` - AppImage
+
+### CI/CD with GitHub Actions
+
+The repository includes a GitHub Actions workflow (`.github/workflows/release.yml`) that automatically builds for all platforms when you push a version tag:
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+This creates a draft release with binaries for:
+- macOS (ARM64 and x64)
+- Windows (x64)
+- Linux (x64)
+
+## Project Structure
+
+```
+downlink/
+├── app/                    # Next.js app (frontend)
+│   ├── components/         # React components
+│   │   ├── QueueItem.tsx   # Queue item display
+│   │   └── SettingsModal.tsx # Settings modal
+│   ├── hooks/              # React hooks
+│   │   └── useDownlink.ts  # Tauri backend communication
+│   ├── types.ts            # TypeScript type definitions
+│   ├── page.tsx            # Main page component
+│   ├── layout.tsx          # App layout
+│   └── globals.css         # Global styles
+├── src-tauri/              # Tauri/Rust backend
+│   ├── src/
+│   │   ├── lib.rs          # Main app entry and Tauri commands
+│   │   ├── db.rs           # SQLite database operations
+│   │   ├── download_manager.rs # Download execution and queue management
+│   │   ├── tool_manager.rs # yt-dlp/ffmpeg binary management
+│   │   ├── settings.rs     # User settings persistence
+│   │   ├── events.rs       # Backend → Frontend events
+│   │   ├── models.rs       # Data models
+│   │   ├── url_utils.rs    # URL parsing and validation
+│   │   └── ytdlp.rs        # yt-dlp process orchestration
+│   ├── Cargo.toml          # Rust dependencies
+│   └── tauri.conf.json     # Tauri configuration
+├── downlink_docs.md        # Detailed design document
+├── package.json            # Node.js dependencies
+└── README.md               # This file
+```
+
+## Configuration
+
+Settings are stored in the app's data directory:
+- **macOS**: `~/Library/Application Support/Downlink/`
+- **Windows**: `%APPDATA%\Downlink\`
+- **Linux**: `~/.local/share/downlink/`
+
+### Default Presets
+
+| Preset | Description |
+|--------|-------------|
+| Recommended (Best) | Best quality, merges video+audio automatically |
+| 1080p MP4 | Best quality up to 1080p in MP4 container |
+| Best MP4 | Best quality preferring MP4 format |
+| Audio M4A | Audio only in M4A format (fastest) |
+| Audio MP3 320 | Audio only in MP3 320kbps |
+
+## Tauri Commands
+
+The frontend communicates with the backend via Tauri commands:
+
+| Command | Description |
+|---------|-------------|
+| `add_urls` | Add URLs to the download queue |
+| `fetch_metadata` | Fetch video/playlist metadata |
+| `expand_playlist` | Expand playlist into individual items |
+| `start_download` | Start a specific download |
+| `stop_download` | Stop (pause) a download |
+| `cancel_download` | Cancel and remove a download |
+| `retry_download` | Retry a failed download |
+| `get_queue` | Get all active queue items |
+| `get_history` | Get completed downloads |
+| `get_settings` | Get user settings |
+| `save_settings` | Save user settings |
+| `get_toolchain_status` | Get yt-dlp/ffmpeg versions and status |
+
+## Events
+
+Backend → Frontend events for real-time updates:
+
+| Event | Description |
+|-------|-------------|
+| `AppReady` | App initialized with tool versions |
+| `DownloadStarted` | Download has started |
+| `DownloadProgress` | Progress update with percent, speed, ETA |
+| `DownloadCompleted` | Download finished successfully |
+| `DownloadFailed` | Download failed with error and remediation actions |
+| `PlaylistExpanded` | Playlist expanded into child items |
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details.
+
+## Acknowledgments
+
+- [yt-dlp](https://github.com/yt-dlp/yt-dlp) - The amazing media downloader
+- [Tauri](https://tauri.app/) - Framework for building desktop apps
+- [Next.js](https://nextjs.org/) - React framework
+- [SponsorBlock](https://sponsor.ajay.app/) - Community-driven sponsor skipping
+
+## Roadmap
+
+### v1.0
+- [x] Basic download functionality
+- [x] Queue management
+- [x] Playlist expansion
+- [x] Settings persistence
+- [x] SponsorBlock integration
+- [x] Subtitle support
+
+### v1.1
+- [ ] Format matrix (advanced format selection)
+- [ ] Batch rules (per-channel/site presets)
+- [ ] Download scheduler
+- [ ] Bandwidth graphs
+- [ ] Cookie import wizard
+
+### Future
+- [ ] Auto-update for app and tools
+- [ ] Plugin system for custom presets
+- [ ] Cloud sync for settings
