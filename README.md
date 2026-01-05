@@ -56,80 +56,129 @@ This will start both the Next.js dev server and the Tauri development window.
 
 ### 4. Build for production
 
+The easiest way to build is using the provided build scripts, which automatically download yt-dlp and ffmpeg binaries:
+
 ```bash
-npm run tauri:build
+# macOS/Linux
+./scripts/build.sh
+
+# Windows (PowerShell)
+.\scripts\build.ps1
 ```
 
 Built applications will be in `src-tauri/target/release/bundle/`.
 
 ## Building for Distribution
 
-### macOS
+### Using Build Scripts (Recommended)
+
+We provide build scripts that automatically download the required binaries (yt-dlp, ffmpeg) and build the app:
+
+#### macOS / Linux
+
+```bash
+# Build for current platform
+./scripts/build.sh
+
+# Build for specific target
+./scripts/build.sh --target macos-arm64    # Apple Silicon
+./scripts/build.sh --target macos-x64      # Intel Mac
+./scripts/build.sh --target macos-universal # Universal binary
+./scripts/build.sh --target linux-x64      # Linux x64
+
+# Only download binaries (don't build)
+./scripts/build.sh --download-only
+
+# Clean and rebuild
+./scripts/build.sh --clean
+```
+
+#### Windows (PowerShell)
+
+```powershell
+# Build for Windows x64
+.\scripts\build.ps1
+
+# Only download binaries
+.\scripts\build.ps1 -DownloadOnly
+
+# Clean and rebuild
+.\scripts\build.ps1 -Clean
+```
+
+### Manual Build
+
+If you prefer to build manually:
+
+#### macOS
 
 **Prerequisites:**
 - Xcode Command Line Tools: `xcode-select --install`
 - Rust with macOS targets
 
-**Build commands:**
+**Download binaries first:**
 ```bash
-# Build for current architecture
+mkdir -p src-tauri/binaries
+cd src-tauri/binaries
+
+# Download yt-dlp
+curl -L -o yt-dlp-aarch64-apple-darwin "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos"
+cp yt-dlp-aarch64-apple-darwin yt-dlp-x86_64-apple-darwin
+chmod +x yt-dlp-*
+
+# Download ffmpeg
+curl -L -o ffmpeg.zip "https://evermeet.cx/ffmpeg/getrelease/zip"
+unzip ffmpeg.zip
+mv ffmpeg ffmpeg-x86_64-apple-darwin
+cp ffmpeg-x86_64-apple-darwin ffmpeg-aarch64-apple-darwin
+chmod +x ffmpeg-*
+rm ffmpeg.zip
+```
+
+**Build:**
+```bash
 npm run tauri:build
-
-# Build for Apple Silicon (M1/M2/M3)
-npm run tauri:build -- --target aarch64-apple-darwin
-
-# Build for Intel Macs
-npm run tauri:build -- --target x86_64-apple-darwin
-
-# Build universal binary (both architectures)
-npm run tauri:build -- --target universal-apple-darwin
 ```
 
 **Output files:**
 - `src-tauri/target/release/bundle/macos/Downlink.app` - Application bundle
 - `src-tauri/target/release/bundle/dmg/Downlink_0.1.0_*.dmg` - Disk image
 
-**Code Signing (for distribution):**
-```bash
-# Set your Apple Developer identity
-export APPLE_SIGNING_IDENTITY="Developer ID Application: Your Name (TEAMID)"
-export APPLE_ID="your@email.com"
-export APPLE_PASSWORD="app-specific-password"
-export APPLE_TEAM_ID="TEAMID"
-
-npm run tauri:build
-```
-
-### Windows
+#### Windows
 
 **Prerequisites:**
 - Visual Studio Build Tools with C++ workload
 - Rust with Windows target
 - WebView2 (usually pre-installed on Windows 10/11)
 
-**Build commands:**
+**Download binaries first (PowerShell):**
 ```powershell
-# Build for 64-bit Windows
-npm run tauri:build
+New-Item -ItemType Directory -Path "src-tauri\binaries" -Force
 
-# Build for 32-bit Windows (rare)
-npm run tauri:build -- --target i686-pc-windows-msvc
+# Download yt-dlp
+Invoke-WebRequest -Uri "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe" `
+  -OutFile "src-tauri\binaries\yt-dlp-x86_64-pc-windows-msvc.exe"
+
+# Download ffmpeg (from gyan.dev)
+$TempDir = New-Item -ItemType Directory -Path "$env:TEMP\ffmpeg-dl" -Force
+Invoke-WebRequest -Uri "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip" `
+  -OutFile "$TempDir\ffmpeg.zip"
+Expand-Archive -Path "$TempDir\ffmpeg.zip" -DestinationPath $TempDir -Force
+$FFmpegExe = Get-ChildItem -Path $TempDir -Filter "ffmpeg.exe" -Recurse | Select-Object -First 1
+Copy-Item -Path $FFmpegExe.FullName -Destination "src-tauri\binaries\ffmpeg-x86_64-pc-windows-msvc.exe"
+Remove-Item -Path $TempDir -Recurse -Force
+```
+
+**Build:**
+```powershell
+npm run tauri:build
 ```
 
 **Output files:**
 - `src-tauri/target/release/bundle/nsis/Downlink_0.1.0_x64-setup.exe` - NSIS installer
 - `src-tauri/target/release/bundle/msi/Downlink_0.1.0_x64_en-US.msi` - MSI installer
 
-**Code Signing (for distribution):**
-```powershell
-# Set certificate path and password
-$env:TAURI_PRIVATE_KEY = "path/to/private-key.key"
-$env:TAURI_KEY_PASSWORD = "your-password"
-
-npm run tauri:build
-```
-
-### Linux
+#### Linux
 
 **Prerequisites:**
 ```bash
@@ -141,7 +190,24 @@ sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget file \
 sudo dnf install webkit2gtk4.1-devel openssl-devel gtk3-devel librsvg2-devel
 ```
 
-**Build commands:**
+**Download binaries first:**
+```bash
+mkdir -p src-tauri/binaries
+cd src-tauri/binaries
+
+# Download yt-dlp
+curl -L -o yt-dlp-x86_64-unknown-linux-gnu "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux"
+chmod +x yt-dlp-*
+
+# Download ffmpeg
+curl -L -o ffmpeg.tar.xz "https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz"
+tar -xf ffmpeg.tar.xz
+mv ffmpeg-*-static/ffmpeg ffmpeg-x86_64-unknown-linux-gnu
+chmod +x ffmpeg-*
+rm -rf ffmpeg.tar.xz ffmpeg-*-static
+```
+
+**Build:**
 ```bash
 npm run tauri:build
 ```
@@ -164,6 +230,8 @@ This creates a draft release with binaries for:
 - macOS (ARM64 and x64)
 - Windows (x64)
 - Linux (x64)
+
+All builds include bundled yt-dlp and ffmpeg - users don't need to install them separately!
 
 ## Project Structure
 

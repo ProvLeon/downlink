@@ -5,6 +5,11 @@ on:
     tags:
       - "v*"
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g., v0.1.0)"
+        required: false
+        default: ""
 
 env:
   CARGO_TERM_COLOR: always
@@ -18,12 +23,19 @@ jobs:
           - platform: macos-latest
             target: aarch64-apple-darwin
             name: macOS-arm64
+            binary_suffix: aarch64-apple-darwin
           - platform: macos-latest
             target: x86_64-apple-darwin
             name: macOS-x64
+            binary_suffix: x86_64-apple-darwin
           - platform: windows-latest
             target: x86_64-pc-windows-msvc
             name: Windows-x64
+            binary_suffix: x86_64-pc-windows-msvc
+          - platform: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            name: Linux-x64
+            binary_suffix: x86_64-unknown-linux-gnu
 
     runs-on: ${{ matrix.platform }}
 
@@ -42,18 +54,75 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
-      - name: Install dependencies (macOS)
-        if: matrix.platform == 'macos-latest'
+      - name: Install dependencies (Ubuntu)
+        if: matrix.platform == 'ubuntu-22.04'
         run: |
-          rustup target add ${{ matrix.target }}
-
-      - name: Install dependencies (Windows)
-        if: matrix.platform == 'windows-latest'
-        run: |
-          rustup target add ${{ matrix.target }}
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libssl-dev libgtk-3-dev librsvg2-dev
 
       - name: Install frontend dependencies
         run: npm ci
+
+      - name: Create binaries directory
+        run: mkdir -p src-tauri/binaries
+
+      # Download yt-dlp
+      - name: Download yt-dlp (macOS)
+        if: matrix.platform == 'macos-latest'
+        run: |
+          curl -L -o "src-tauri/binaries/yt-dlp-${{ matrix.binary_suffix }}" \
+            "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos"
+          chmod +x "src-tauri/binaries/yt-dlp-${{ matrix.binary_suffix }}"
+
+      - name: Download yt-dlp (Windows)
+        if: matrix.platform == 'windows-latest'
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe" `
+            -OutFile "src-tauri/binaries/yt-dlp-${{ matrix.binary_suffix }}.exe"
+
+      - name: Download yt-dlp (Linux)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          curl -L -o "src-tauri/binaries/yt-dlp-${{ matrix.binary_suffix }}" \
+            "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux"
+          chmod +x "src-tauri/binaries/yt-dlp-${{ matrix.binary_suffix }}"
+
+      # Download ffmpeg
+      - name: Download ffmpeg (macOS)
+        if: matrix.platform == 'macos-latest'
+        run: |
+          curl -L -o ffmpeg.zip "https://evermeet.cx/ffmpeg/getrelease/zip"
+          unzip -o ffmpeg.zip
+          mv ffmpeg "src-tauri/binaries/ffmpeg-${{ matrix.binary_suffix }}"
+          chmod +x "src-tauri/binaries/ffmpeg-${{ matrix.binary_suffix }}"
+          rm ffmpeg.zip
+
+      - name: Download ffmpeg (Windows)
+        if: matrix.platform == 'windows-latest'
+        shell: pwsh
+        run: |
+          $TempDir = New-Item -ItemType Directory -Path "$env:TEMP\ffmpeg-dl" -Force
+          Invoke-WebRequest -Uri "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip" `
+            -OutFile "$TempDir\ffmpeg.zip"
+          Expand-Archive -Path "$TempDir\ffmpeg.zip" -DestinationPath $TempDir -Force
+          $FFmpegExe = Get-ChildItem -Path $TempDir -Filter "ffmpeg.exe" -Recurse | Select-Object -First 1
+          Copy-Item -Path $FFmpegExe.FullName -Destination "src-tauri/binaries/ffmpeg-${{ matrix.binary_suffix }}.exe"
+          Remove-Item -Path $TempDir -Recurse -Force
+
+      - name: Download ffmpeg (Linux)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          curl -L -o ffmpeg.tar.xz "https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz"
+          tar -xf ffmpeg.tar.xz
+          FFMPEG_BIN=$(find . -name "ffmpeg" -type f -executable | head -1)
+          mv "$FFMPEG_BIN" "src-tauri/binaries/ffmpeg-${{ matrix.binary_suffix }}"
+          chmod +x "src-tauri/binaries/ffmpeg-${{ matrix.binary_suffix }}"
+          rm -rf ffmpeg.tar.xz ffmpeg-*-static
+
+      - name: List binaries
+        run: ls -la src-tauri/binaries/
+        shell: bash
 
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
@@ -67,10 +136,21 @@ jobs:
           # APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           # APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: "Downlink ${{ github.ref_name }}"
+          tagName: ${{ github.event.inputs.tag || github.ref_name }}
+          releaseName: "Downlink ${{ github.event.inputs.tag || github.ref_name }}"
           releaseBody: |
-            See the changelog for details.
+            ## Downlink ${{ github.event.inputs.tag || github.ref_name }}
+
+            ### Downloads
+            - **macOS**: Download the `.dmg` file for your architecture (arm64 for M1/M2/M3, x64 for Intel)
+            - **Windows**: Download the `.exe` installer or `.msi` file
+            - **Linux**: Download the `.deb`, `.rpm`, or `.AppImage` file
+
+            ### What's included
+            - yt-dlp and ffmpeg are bundled - no separate installation required!
+
+            ### Changelog
+            See the [commit history](https://github.com/${{ github.repository }}/commits/${{ github.event.inputs.tag || github.ref_name }}) for changes.
           releaseDraft: true
           prerelease: false
           args: --target ${{ matrix.target }}
@@ -84,4 +164,7 @@ jobs:
             src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.app
             src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*.exe
             src-tauri/target/${{ matrix.target }}/release/bundle/msi/*.msi
+            src-tauri/target/${{ matrix.target }}/release/bundle/deb/*.deb
+            src-tauri/target/${{ matrix.target }}/release/bundle/rpm/*.rpm
+            src-tauri/target/${{ matrix.target }}/release/bundle/appimage/*.AppImage
           if-no-files-found: ignore
