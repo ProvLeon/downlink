@@ -1,0 +1,61 @@
+[package]
+name = "app"
+version = "0.1.0"
+description = "Downlink — cross-platform media downloader powered by yt-dlp"
+authors = ["downlink contributors"]
+license = "MIT"
+repository = ""
+edition = "2021"
+rust-version = "1.77.2"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+name = "app_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.5.3", features = [] }
+
+[dependencies]
+# --- Core runtime ---
+tauri = { version = "2.9.5", features = [] }
+tauri-plugin-shell = "2"
+tauri-plugin-log = "2"
+log = "0.4"
+
+# --- Serde / JSON ---
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# --- Async + process orchestration ---
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "process", "time", "sync", "fs", "io-util"] }
+
+# --- Persistence ---
+rusqlite = { version = "0.32", features = ["bundled", "chrono", "uuid"] }
+
+# --- Time / IDs ---
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+
+# --- Filesystem / paths ---
+directories = "5.0.1"
+sanitize-filename = "0.5.0"
+
+# --- Error handling / utilities ---
+thiserror = "1"
+anyhow = "1"
+
+# --- Networking (tool manifest / updates) ---
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "gzip", "brotli"] }
+sha2 = "0.10"
+hex = "0.4"
+
+# --- URL parsing (multi-paste, validation) ---
+url = "2"
+regex = "1"
+
+# --- Filesystem utilities ---
+which = "6"
+dirs = "5"
+open = "5"

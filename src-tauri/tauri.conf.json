@@ -1,0 +1,48 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "Downlink",
+  "version": "0.1.0",
+  "identifier": "com.downlink.downlink",
+  "build": {
+    "frontendDist": "../out",
+    "devUrl": "http://localhost:3000",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Downlink",
+        "width": 900,
+        "height": 700,
+        "minWidth": 700,
+        "minHeight": 500,
+        "resizable": true,
+        "fullscreen": false,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "externalBin": [
+      "binaries/yt-dlp",
+      "binaries/ffmpeg"
+    ],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "category": "Utility",
+    "shortDescription": "A lightweight cross-platform video downloader powered by yt-dlp",
+    "longDescription": "Downlink is a modern, user-friendly desktop application for downloading videos and audio from YouTube and hundreds of other sites. Built with yt-dlp as the engine, it provides a clean interface for managing downloads with features like quality presets, playlist support, and SponsorBlock integration.",
+    "copyright": "© 2025 Downlink"
+  }
+}
