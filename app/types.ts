@@ -2,6 +2,15 @@
 // Downlink Frontend Types
 // ============================================================================
 
+// App update info
+export interface AppUpdateInfo {
+  available: boolean;
+  current_version: string;
+  latest_version: string | null;
+  release_notes: string | null;
+  download_url: string | null;
+}
+
 // Queue item status
 export type DownloadStatus =
   | "queued"

@@ -792,6 +792,120 @@ async fn open_folder(path: String) -> Result<(), String> {
 }
 
 // ============================================================================
+// App Update Commands
+// ============================================================================
+
+#[derive(Debug, Clone, Serialize)]
+pub struct AppUpdateInfo {
+    pub available: bool,
+    pub current_version: String,
+    pub latest_version: Option<String>,
+    pub release_notes: Option<String>,
+    pub download_url: Option<String>,
+}
+
+#[tauri::command]
+async fn check_app_update(app: AppHandle) -> Result<AppUpdateInfo, String> {
+    use tauri_plugin_updater::UpdaterExt;
+
+    let current_version = env!("CARGO_PKG_VERSION").to_string();
+
+    match app.updater() {
+        Ok(updater) => {
+            match updater.check().await {
+                Ok(Some(update)) => Ok(AppUpdateInfo {
+                    available: true,
+                    current_version,
+                    latest_version: Some(update.version.clone()),
+                    release_notes: update.body.clone(),
+                    download_url: None,
+                }),
+                Ok(None) => Ok(AppUpdateInfo {
+                    available: false,
+                    current_version,
+                    latest_version: None,
+                    release_notes: None,
+                    download_url: None,
+                }),
+                Err(e) => {
+                    // Log the error but return a "no update" response instead of failing
+                    // This handles the case where no release exists yet
+                    log::warn!(
+                        "Failed to check for updates (this is normal if no release exists yet): {}",
+                        e
+                    );
+                    Ok(AppUpdateInfo {
+                        available: false,
+                        current_version,
+                        latest_version: None,
+                        release_notes: None,
+                        download_url: None,
+                    })
+                }
+            }
+        }
+        Err(e) => {
+            // Updater plugin not configured properly - return no update available
+            log::warn!("Updater not available: {}", e);
+            Ok(AppUpdateInfo {
+                available: false,
+                current_version: current_version.clone(),
+                latest_version: None,
+                release_notes: None,
+                download_url: None,
+            })
+        }
+    }
+}
+
+#[tauri::command]
+async fn install_app_update(app: AppHandle) -> Result<(), String> {
+    use tauri_plugin_updater::UpdaterExt;
+
+    let updater = app
+        .updater()
+        .map_err(|e| format!("Updater not available: {}", e))?;
+
+    let update = updater
+        .check()
+        .await
+        .map_err(|e| format!("Failed to check for updates: {}", e))?
+        .ok_or_else(|| "No update available".to_string())?;
+
+    log::info!(
+        "Downloading and installing update to version {}",
+        update.version
+    );
+
+    // Download and install the update
+    let mut downloaded = 0;
+    let mut total = 0;
+
+    update
+        .download_and_install(
+            |chunk_length, content_length| {
+                downloaded += chunk_length;
+                total = content_length.unwrap_or(0);
+                log::info!("Downloaded {} of {} bytes", downloaded, total);
+            },
+            || {
+                log::info!("Download complete, installing...");
+            },
+        )
+        .await
+        .map_err(|e| format!("Failed to download/install update: {}", e))?;
+
+    log::info!("Update installed successfully. Restart required.");
+
+    Ok(())
+}
+
+#[tauri::command]
+async fn restart_app(app: AppHandle) -> Result<(), String> {
+    app.restart();
+}
+
+// ============================================================================
 // Helper Functions
 // ============================================================================
 
@@ -831,6 +945,8 @@ fn emit_app_ready(app: &AppHandle, yt_dlp_version: Option<String>, ffmpeg_versio
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             // Enable logging in both debug and release modes
             app.handle().plugin(
@@ -907,6 +1023,10 @@ pub fn run() {
             get_default_download_dir,
             open_file,
             open_folder,
+            // App updates
+            check_app_update,
+            install_app_update,
+            restart_app,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   AddUrlsOptions,
   AddUrlsResult,
+  AppUpdateInfo,
   DownlinkEvent,
   ExpandPlaylistOptions,
   ExpandPlaylistResult,
@@ -18,6 +19,13 @@ import type {
   WindowState,
 } from "../types";
 
+// Update check state
+export interface UpdateAvailableState {
+  available: boolean;
+  latestVersion: string | null;
+  dismissed: boolean;
+}
+
 // Event name used by the backend
 const DOWNLINK_EVENT_NAME = "downlink://event";
 
@@ -29,6 +37,10 @@ export interface UseDownlinkReturn {
   appVersion: string | null;
   ytDlpVersion: string | null;
   ffmpegVersion: string | null;
+
+  // Update state
+  updateAvailable: UpdateAvailableState;
+  dismissUpdateNotification: () => void;
 
   // Queue state
   queue: QueueItem[];
@@ -64,6 +76,11 @@ export interface UseDownlinkReturn {
   checkForUpdates: () => Promise<string[]>;
   updateTool: (toolName: string) => Promise<string>;
 
+  // App updates
+  checkAppUpdate: () => Promise<AppUpdateInfo>;
+  installAppUpdate: () => Promise<void>;
+  restartApp: () => Promise<void>;
+
   // Presets
   getPresets: () => Promise<PresetInfo[]>;
 
@@ -88,6 +105,11 @@ export function useDownlink(): UseDownlinkReturn {
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [history, setHistory] = useState<QueueItem[]>([]);
   const [lastError, setLastError] = useState<string | null>(null);
+  const [updateAvailable, setUpdateAvailable] = useState<UpdateAvailableState>({
+    available: false,
+    latestVersion: null,
+    dismissed: false,
+  });
 
   // Refs for cleanup
   const unlistenRef = useRef<UnlistenFn | null>(null);
@@ -342,6 +364,21 @@ export function useDownlink(): UseDownlinkReturn {
       try {
         await refreshQueue();
         await refreshHistory();
+
+        // Check for app updates in the background
+        try {
+          const updateInfo = await invoke<AppUpdateInfo>("check_app_update");
+          if (updateInfo.available) {
+            setUpdateAvailable({
+              available: true,
+              latestVersion: updateInfo.latest_version,
+              dismissed: false,
+            });
+          }
+        } catch (e) {
+          // Silently fail update check - not critical
+          console.warn("Failed to check for updates:", e);
+        }
       } catch (e) {
         console.error("Failed to load initial data:", e);
       }
@@ -349,6 +386,11 @@ export function useDownlink(): UseDownlinkReturn {
 
     loadInitialData();
   }, [isTauri, refreshQueue, refreshHistory]);
+
+  // Dismiss update notification
+  const dismissUpdateNotification = useCallback(() => {
+    setUpdateAvailable(prev => ({ ...prev, dismissed: true }));
+  }, []);
 
   // URL operations
   const addUrls = useCallback(
@@ -483,6 +525,19 @@ export function useDownlink(): UseDownlinkReturn {
     return invoke<string>("update_tool", { toolName: toolName });
   }, []);
 
+  // App updates
+  const checkAppUpdate = useCallback(async (): Promise<AppUpdateInfo> => {
+    return invoke<AppUpdateInfo>("check_app_update");
+  }, []);
+
+  const installAppUpdate = useCallback(async (): Promise<void> => {
+    await invoke("install_app_update");
+  }, []);
+
+  const restartApp = useCallback(async (): Promise<void> => {
+    await invoke("restart_app");
+  }, []);
+
   // Presets
   const getPresets = useCallback(async (): Promise<PresetInfo[]> => {
     return invoke<PresetInfo[]>("get_presets");
@@ -517,6 +572,10 @@ export function useDownlink(): UseDownlinkReturn {
     ytDlpVersion,
     ffmpegVersion,
 
+    // Update state
+    updateAvailable,
+    dismissUpdateNotification,
+
     // Queue state
     queue,
     history,
@@ -550,6 +609,11 @@ export function useDownlink(): UseDownlinkReturn {
     getToolchainStatus,
     checkForUpdates,
     updateTool,
+
+    // App updates
+    checkAppUpdate,
+    installAppUpdate,
+    restartApp,
 
     // Presets
     getPresets,

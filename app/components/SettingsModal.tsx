@@ -1,13 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { UserSettings } from "../types";
+import type { UserSettings, AppUpdateInfo } from "../types";
+import { AppUpdater } from "./AppUpdater";
 
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
   settings: UserSettings | null;
   onSave: (settings: UserSettings) => Promise<void>;
+  currentVersion: string | null;
+  checkAppUpdate: () => Promise<AppUpdateInfo>;
+  installAppUpdate: () => Promise<void>;
+  restartApp: () => Promise<void>;
 }
 
 type TabId = "general" | "formats" | "sponsorblock" | "subtitles" | "updates" | "network";
@@ -30,7 +35,16 @@ const SPONSORBLOCK_CATEGORIES = [
   { id: "music_offtopic", label: "Non-music" },
 ];
 
-export function SettingsModal({ isOpen, onClose, settings, onSave }: SettingsModalProps) {
+export function SettingsModal({
+  isOpen,
+  onClose,
+  settings,
+  onSave,
+  currentVersion,
+  checkAppUpdate,
+  installAppUpdate,
+  restartApp,
+}: SettingsModalProps) {
   const [activeTab, setActiveTab] = useState<TabId>("general");
   const [localSettings, setLocalSettings] = useState<UserSettings | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -164,8 +178,8 @@ export function SettingsModal({ isOpen, onClose, settings, onSave }: SettingsMod
                   type="button"
                   onClick={() => setActiveTab(tab.id)}
                   className={`rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors ${activeTab === tab.id
-                      ? "bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-white"
-                      : "text-zinc-600 hover:bg-zinc-50 dark:text-zinc-400 dark:hover:bg-zinc-800/50"
+                    ? "bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-white"
+                    : "text-zinc-600 hover:bg-zinc-50 dark:text-zinc-400 dark:hover:bg-zinc-800/50"
                     }`}
                 >
                   {tab.label}
@@ -413,50 +427,55 @@ export function SettingsModal({ isOpen, onClose, settings, onSave }: SettingsMod
                 {/* Updates Tab */}
                 {activeTab === "updates" && (
                   <div className="space-y-6">
-                    <label className="flex items-center gap-3">
-                      <input
-                        type="checkbox"
-                        checked={localSettings.updates.auto_update_app}
-                        onChange={(e) => updateUpdates("auto_update_app", e.target.checked)}
-                        className="h-4 w-4 rounded"
-                      />
-                      <span className="text-sm">Auto-update application</span>
-                    </label>
-
-                    <label className="flex items-center gap-3">
-                      <input
-                        type="checkbox"
-                        checked={localSettings.updates.auto_update_ytdlp}
-                        onChange={(e) => updateUpdates("auto_update_ytdlp", e.target.checked)}
-                        className="h-4 w-4 rounded"
-                      />
-                      <span className="text-sm">Auto-update yt-dlp</span>
-                    </label>
-
-                    <label className="flex items-center gap-3">
-                      <input
-                        type="checkbox"
-                        checked={localSettings.updates.auto_update_ffmpeg}
-                        onChange={(e) => updateUpdates("auto_update_ffmpeg", e.target.checked)}
-                        className="h-4 w-4 rounded"
-                      />
-                      <span className="text-sm">Auto-update ffmpeg</span>
-                    </label>
-
+                    {/* App Updates Section */}
                     <div>
-                      <label className="mb-2 block text-sm font-medium">
-                        Check Interval (hours)
-                      </label>
-                      <input
-                        type="number"
-                        min={1}
-                        max={168}
-                        value={localSettings.updates.check_interval_hours}
-                        onChange={(e) =>
-                          updateUpdates("check_interval_hours", parseInt(e.target.value) || 24)
-                        }
-                        className="w-24 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-800 dark:bg-zinc-950"
+                      <h3 className="text-sm font-semibold mb-3">Application Updates</h3>
+                      <AppUpdater
+                        checkAppUpdate={checkAppUpdate}
+                        installAppUpdate={installAppUpdate}
+                        restartApp={restartApp}
+                        currentVersion={currentVersion}
                       />
+                    </div>
+
+                    <div className="border-t border-zinc-200 dark:border-zinc-800 pt-6">
+                      <h3 className="text-sm font-semibold mb-3">Tool Updates</h3>
+
+                      <label className="flex items-center gap-3">
+                        <input
+                          type="checkbox"
+                          checked={localSettings.updates.auto_update_ytdlp}
+                          onChange={(e) => updateUpdates("auto_update_ytdlp", e.target.checked)}
+                          className="h-4 w-4 rounded"
+                        />
+                        <span className="text-sm">Auto-update yt-dlp</span>
+                      </label>
+
+                      <label className="flex items-center gap-3 mt-3">
+                        <input
+                          type="checkbox"
+                          checked={localSettings.updates.auto_update_ffmpeg}
+                          onChange={(e) => updateUpdates("auto_update_ffmpeg", e.target.checked)}
+                          className="h-4 w-4 rounded"
+                        />
+                        <span className="text-sm">Auto-update ffmpeg</span>
+                      </label>
+
+                      <div className="mt-4">
+                        <label className="mb-2 block text-sm font-medium">
+                          Check Interval (hours)
+                        </label>
+                        <input
+                          type="number"
+                          min={1}
+                          max={168}
+                          value={localSettings.updates.check_interval_hours}
+                          onChange={(e) =>
+                            updateUpdates("check_interval_hours", parseInt(e.target.value) || 24)
+                          }
+                          className="w-24 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-800 dark:bg-zinc-950"
+                        />
+                      </div>
                     </div>
                   </div>
                 )}

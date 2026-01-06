@@ -458,6 +458,40 @@ export default function Home() {
           </div>
         </header>
 
+        {/* Update available notification */}
+        {downlink.updateAvailable.available && !downlink.updateAvailable.dismissed && (
+          <div className="rounded-2xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800 dark:border-blue-900/50 dark:bg-blue-950/30 dark:text-blue-200">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+                </svg>
+                <span>
+                  <strong>Update Available:</strong> Downlink v{downlink.updateAvailable.latestVersion} is available.
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSettingsOpen(true);
+                  }}
+                  className="rounded-lg bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700"
+                >
+                  Update
+                </button>
+                <button
+                  type="button"
+                  onClick={downlink.dismissUpdateNotification}
+                  className="rounded-lg px-2 py-1 text-xs hover:bg-blue-100 dark:hover:bg-blue-900/50"
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Web mode warning */}
         {!downlink.isTauri && (
           <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
@@ -896,7 +930,7 @@ export default function Home() {
 
         {/* Footer */}
         <footer className="pb-2 text-center text-xs text-zinc-500 dark:text-zinc-400">
-          Downlink v{downlink.appVersion ?? "0.1.0"} · Powered by yt-dlp
+          Downlink v{downlink.appVersion ?? "0.1.1"} · Powered by yt-dlp
           {downlink.ytDlpVersion && ` ${downlink.ytDlpVersion}`}
         </footer>
       </div>
@@ -907,6 +941,10 @@ export default function Home() {
         onClose={handleCloseSettings}
         settings={settings}
         onSave={handleSaveSettings}
+        currentVersion={downlink.appVersion}
+        checkAppUpdate={downlink.checkAppUpdate}
+        installAppUpdate={downlink.installAppUpdate}
+        restartApp={downlink.restartApp}
       />
 
       {/* Advanced Options Modal */}

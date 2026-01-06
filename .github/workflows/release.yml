@@ -132,6 +132,9 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Tauri updater signing key (required for auto-updates)
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           # For macOS code signing (optional):
           # APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           # APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
@@ -153,11 +156,16 @@ jobs:
             ### What's included
             - yt-dlp and ffmpeg are bundled - no separate installation required!
 
+            ### Auto-Updates
+            Downlink now supports automatic updates! You'll be notified when a new version is available.
+
             ### Changelog
             See the [commit history](https://github.com/${{ github.repository }}/commits/${{ github.event.inputs.tag || github.ref_name }}) for changes.
           releaseDraft: false
           prerelease: false
           args: --target ${{ matrix.target }}
+          # Enable updater artifacts (generates latest.json and .sig files)
+          updaterJsonPreferNsis: true
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
