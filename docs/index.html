@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Downlink - Download Videos with Ease</title>
+    <meta name="description" content="A lightweight, cross-platform video downloader powered by yt-dlp. Download videos from YouTube and 1000+ sites.">
+    <link rel="icon" type="image/png" href="https://raw.githubusercontent.com/YOUR_USERNAME/downlink/main/public/downlink-square.png">
+    <style>
+        :root {
+            --bg-primary: #0a0a0a;
+            --bg-secondary: #141414;
+            --bg-card: #1a1a1a;
+            --text-primary: #ffffff;
+            --text-secondary: #a1a1aa;
+            --accent: #3b82f6;
+            --accent-hover: #2563eb;
+            --border: #27272a;
+            --success: #22c55e;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        /* Header */
+        header {
+            padding: 24px 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .header-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+            color: var(--text-primary);
+        }
+
+        .logo img {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+        }
+
+        .logo span {
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+
+        .github-link {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            padding: 8px 16px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            transition: all 0.2s;
+        }
+
+        .github-link:hover {
+            color: var(--text-primary);
+            border-color: var(--text-secondary);
+        }
+
+        /* Hero */
+        .hero {
+            padding: 80px 0;
+            text-align: center;
+        }
+
+        .hero h1 {
+            font-size: 3.5rem;
+            font-weight: 800;
+            margin-bottom: 24px;
+            background: linear-gradient(135deg, #fff 0%, #a1a1aa 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero p {
+            font-size: 1.25rem;
+            color: var(--text-secondary);
+            max-width: 600px;
+            margin: 0 auto 48px;
+        }
+
+        .hero-buttons {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 16px 32px;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.2s;
+            cursor: pointer;
+            border: none;
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--accent-hover);
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: var(--bg-card);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            background: var(--bg-secondary);
+            border-color: var(--text-secondary);
+        }
+
+        /* Downloads Section */
+        .downloads {
+            padding: 80px 0;
+        }
+
+        .downloads h2 {
+            font-size: 2rem;
+            text-align: center;
+            margin-bottom: 48px;
+        }
+
+        .download-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 24px;
+        }
+
+        .download-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 32px;
+            text-align: center;
+            transition: all 0.2s;
+        }
+
+        .download-card:hover {
+            border-color: var(--accent);
+            transform: translateY(-4px);
+        }
+
+        .download-card .icon {
+            font-size: 3rem;
+            margin-bottom: 16px;
+        }
+
+        .download-card h3 {
+            font-size: 1.5rem;
+            margin-bottom: 8px;
+        }
+
+        .download-card p {
+            color: var(--text-secondary);
+            margin-bottom: 24px;
+        }
+
+        .download-card .btn {
+            width: 100%;
+            justify-content: center;
+        }
+
+        .download-options {
+            margin-top: 16px;
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+        }
+
+        .download-options a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.875rem;
+            padding: 4px 8px;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+
+        .download-options a:hover {
+            color: var(--accent);
+            background: var(--bg-secondary);
+        }
+
+        /* Features */
+        .features {
+            padding: 80px 0;
+            background: var(--bg-secondary);
+        }
+
+        .features h2 {
+            font-size: 2rem;
+            text-align: center;
+            margin-bottom: 48px;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 32px;
+        }
+
+        .feature {
+            padding: 24px;
+        }
+
+        .feature .icon {
+            font-size: 2rem;
+            margin-bottom: 16px;
+        }
+
+        .feature h3 {
+            font-size: 1.25rem;
+            margin-bottom: 8px;
+        }
+
+        .feature p {
+            color: var(--text-secondary);
+        }
+
+        /* Screenshot */
+        .screenshot {
+            padding: 80px 0;
+            text-align: center;
+        }
+
+        .screenshot h2 {
+            font-size: 2rem;
+            margin-bottom: 48px;
+        }
+
+        .screenshot img {
+            max-width: 100%;
+            border-radius: 16px;
+            border: 1px solid var(--border);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+
+        /* Footer */
+        footer {
+            padding: 48px 0;
+            border-top: 1px solid var(--border);
+            text-align: center;
+            color: var(--text-secondary);
+        }
+
+        footer a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+
+        footer a:hover {
+            text-decoration: underline;
+        }
+
+        .footer-links {
+            display: flex;
+            gap: 24px;
+            justify-content: center;
+            margin-bottom: 24px;
+        }
+
+        /* Version Badge */
+        .version-badge {
+            display: inline-block;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            padding: 4px 12px;
+            border-radius: 999px;
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            margin-bottom: 24px;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .hero h1 {
+                font-size: 2.5rem;
+            }
+
+            .hero p {
+                font-size: 1rem;
+            }
+
+            .header-content {
+                flex-direction: column;
+                gap: 16px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div class="header-content">
+                <a href="/" class="logo">
+                    <img src="https://raw.githubusercontent.com/ProvLeon/downlink/main/public/downlink-square.png" alt="Downlink">
+                    <span>Downlink</span>
+                </a>
+                <a href="https://github.com/ProvLeon/downlink" class="github-link">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                    </svg>
+                    GitHub
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <section class="hero">
+            <div class="container">
+                <div class="version-badge">v0.1.0 — Now Available</div>
+                <h1>Download Videos<br>with Ease</h1>
+                <p>A lightweight, cross-platform video downloader powered by yt-dlp. Download from YouTube and 1000+ sites with a beautiful, simple interface.</p>
+                <div class="hero-buttons">
+                    <a href="#downloads" class="btn btn-primary">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="7 10 12 15 17 10"/>
+                            <line x1="12" y1="15" x2="12" y2="3"/>
+                        </svg>
+                        Download Now
+                    </a>
+                    <a href="https://github.com/YOUR_USERNAME/downlink" class="btn btn-secondary">
+                        View on GitHub
+                    </a>
+                </div>
+            </div>
+        </section>
+
+        <section class="downloads" id="downloads">
+            <div class="container">
+                <h2>Download Downlink</h2>
+                <div class="download-cards">
+                    <div class="download-card">
+                        <div class="icon">🍎</div>
+                        <h3>macOS</h3>
+                        <p>For macOS 10.15 or later</p>
+                        <a href="https://github.com/YOUR_USERNAME/downlink/releases/latest/download/Downlink_0.1.0_aarch64.dmg" class="btn btn-primary">
+                            Download for Mac
+                        </a>
+                        <div class="download-options">
+                            <a href="https://github.com/YOUR_USERNAME/downlink/releases/latest/download/Downlink_0.1.0_aarch64.dmg">Apple Silicon</a>
+                            <a href="https://github.com/YOUR_USERNAME/downlink/releases/latest/download/Downlink_0.1.0_x64.dmg">Intel</a>
+                        </div>
+                    </div>
+
+                    <div class="download-card">
+                        <div class="icon">🪟</div>
+                        <h3>Windows</h3>
+                        <p>For Windows 10/11</p>
+                        <a href="https://github.com/YOUR_USERNAME/downlink/releases/latest/download/Downlink_0.1.0_x64-setup.exe" class="btn btn-primary">
+                            Download for Windows
+                        </a>
+                        <div class="download-options">
+                            <a href="https://github.com/YOUR_USERNAME/downlink/releases/latest/download/Downlink_0.1.0_x64-setup.exe">.exe</a>
+                            <a href="https://github.com/YOUR_USERNAME/downlink/releases/latest/download/Downlink_0.1.0_x64_en-US.msi">.msi</a>
+                        </div>
+                    </div>
+
+                    <div class="download-card">
+                        <div class="icon">🐧</div>
+                        <h3>Linux</h3>
+                        <p>For Ubuntu, Fedora, and more</p>
+                        <a href="https://github.com/YOUR_USERNAME/downlink/releases/latest/download/downlink_0.1.0_amd64.AppImage" class="btn btn-primary">
+                            Download for Linux
+                        </a>
+                        <div class="download-options">
+                            <a href="https://github.com/YOUR_USERNAME/downlink/releases/latest/download/downlink_0.1.0_amd64.deb">.deb</a>
+                            <a href="https://github.com/YOUR_USERNAME/downlink/releases/latest/download/downlink_0.1.0_amd64.rpm">.rpm</a>
+                            <a href="https://github.com/YOUR_USERNAME/downlink/releases/latest/download/downlink_0.1.0_amd64.AppImage">AppImage</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="features">
+            <div class="container">
+                <h2>Features</h2>
+                <div class="features-grid">
+                    <div class="feature">
+                        <div class="icon">📋</div>
+                        <h3>Paste → Preview → Download</h3>
+                        <p>Simple workflow: just paste a URL and see what you're downloading before it starts.</p>
+                    </div>
+                    <div class="feature">
+                        <div class="icon">📦</div>
+                        <h3>Self-Contained</h3>
+                        <p>yt-dlp and ffmpeg are bundled — no separate installation required.</p>
+                    </div>
+                    <div class="feature">
+                        <div class="icon">🎬</div>
+                        <h3>1000+ Sites Supported</h3>
+                        <p>YouTube, Vimeo, Twitter, TikTok, and hundreds more sites supported.</p>
+                    </div>
+                    <div class="feature">
+                        <div class="icon">📝</div>
+                        <h3>Playlist Support</h3>
+                        <p>Download entire playlists with automatic expansion and progress tracking.</p>
+                    </div>
+                    <div class="feature">
+                        <div class="icon">🚫</div>
+                        <h3>SponsorBlock</h3>
+                        <p>Automatically remove sponsor segments from videos.</p>
+                    </div>
+                    <div class="feature">
+                        <div class="icon">💬</div>
+                        <h3>Subtitles</h3>
+                        <p>Download and embed subtitles in multiple languages.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="screenshot">
+            <div class="container">
+                <h2>Beautiful & Simple</h2>
+                <img src="https://raw.githubusercontent.com/YOUR_USERNAME/downlink/main/docs/screenshot.png" alt="Downlink Screenshot">
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <div class="container">
+            <div class="footer-links">
+                <a href="https://github.com/YOUR_USERNAME/downlink">GitHub</a>
+                <a href="https://github.com/YOUR_USERNAME/downlink/releases">Releases</a>
+                <a href="https://github.com/YOUR_USERNAME/downlink/issues">Report Issue</a>
+                <a href="https://github.com/YOUR_USERNAME/downlink/blob/main/LICENSE">License</a>
+            </div>
+            <p></p>
+                Made with ❤️ — Powered by <a href="https://github.com/yt-dlp/yt-dlp">yt-dlp</a> and <a href="https://tauri.app">Tauri</a>
+            </p>
+        </div>
+    </footer>
+
+    <script>
+        // Smooth scroll for anchor links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                document.querySelector(this.getAttribute('href')).scrollIntoView({
+                    behavior: 'smooth'
+                });
+            });
+        });
+
+        // Detect OS and highlight appropriate download
+        const platform = navigator.platform.toLowerCase();
+        const cards = document.querySelectorAll('.download-card');
+
+        if (platform.includes('mac')) {
+            cards[0].style.borderColor = 'var(--accent)';
+        } else if (platform.includes('win')) {
+            cards[1].style.borderColor = 'var(--accent)';
+        } else if (platform.includes('linux')) {
+            cards[2].style.borderColor = 'var(--accent)';
+        }
+    </script>
+</body>
+</html>
