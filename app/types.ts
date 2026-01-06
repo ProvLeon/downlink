@@ -28,6 +28,8 @@ export interface QueueItem {
   status: DownloadStatus;
   phase: string | null;
   progress_percent: number | null;
+  bytes_downloaded: number | null;
+  bytes_total: number | null;
   speed_bps: number | null;
   eta_seconds: number | null;
   preset_id: string;
@@ -81,6 +83,7 @@ export interface FetchMetadataResult {
   uploader: string | null;
   duration_seconds: number | null;
   thumbnail_url: string | null;
+  filesize_bytes: number | null;
   playlist_title: string | null;
   playlist_count_hint: number | null;
 }

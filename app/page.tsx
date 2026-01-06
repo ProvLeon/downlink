@@ -6,6 +6,7 @@ import { QueueItemComponent } from "./components/QueueItem";
 import { SettingsModal } from "./components/SettingsModal";
 import { AdvancedOptions, DEFAULT_OPTIONS, type AdvancedOptionsState } from "./components/AdvancedOptions";
 import type { PresetWithHint, UserSettings, FetchMetadataResult } from "./types";
+import { formatBytes, formatDuration } from "./types";
 import Image from "next/image";
 
 // Preview data for multiple URLs
@@ -231,6 +232,23 @@ export default function Home() {
       if (existing) {
         updated.set(url, { ...existing, presetId: newPresetId });
       }
+      return updated;
+    });
+  }, []);
+
+  // Handler to remove a URL from the input and preview list
+  const handleRemoveUrl = useCallback((urlToRemove: string) => {
+    // Remove from the text input
+    setUrlInput(prev => {
+      // Split by whitespace, filter out the URL, rejoin
+      const urls = prev.match(/https?:\/\/[^\s]+/g) ?? [];
+      const filtered = urls.filter(u => u !== urlToRemove);
+      return filtered.join(' ');
+    });
+    // Remove from preview map
+    setUrlPreviews(prev => {
+      const updated = new Map(prev);
+      updated.delete(urlToRemove);
       return updated;
     });
   }, []);
@@ -536,6 +554,17 @@ export default function Home() {
                           </div>
                           <div className="text-xs truncate" style={{ color: 'var(--foreground)', opacity: 0.7 }}>
                             {preview?.data?.uploader ?? url}
+                            {/* Duration and filesize info */}
+                            {(preview?.data?.duration_seconds || preview?.data?.filesize_bytes) && (
+                              <span className="ml-1">
+                                {preview?.data?.duration_seconds && (
+                                  <span>· {formatDuration(preview.data.duration_seconds)}</span>
+                                )}
+                                {preview?.data?.filesize_bytes && (
+                                  <span> · {formatBytes(preview.data.filesize_bytes)}</span>
+                                )}
+                              </span>
+                            )}
                           </div>
                           {preview?.data?.is_playlist && (
                             <span className="inline-flex items-center gap-1 mt-1 rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
@@ -557,9 +586,21 @@ export default function Home() {
                           </select>
                         </div>
 
-                        {/* Index badge */}
-                        <div className="shrink-0 flex items-center justify-center h-6 w-6 rounded-full bg-zinc-200 dark:bg-zinc-700 text-xs font-medium" style={{ color: 'var(--foreground)' }}>
-                          {index + 1}
+                        {/* Remove button and index badge */}
+                        <div className="shrink-0 flex flex-col items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveUrl(url)}
+                            className="flex items-center justify-center h-6 w-6 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
+                            title="Remove from list"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                          <div className="flex items-center justify-center h-5 w-5 rounded-full bg-zinc-200 dark:bg-zinc-700 text-[10px] font-medium" style={{ color: 'var(--foreground)' }}>
+                            {index + 1}
+                          </div>
                         </div>
                       </div>
                     );
@@ -626,6 +667,17 @@ export default function Home() {
                             : urlInput.trim()
                               ? "Metadata preview will appear here"
                               : "Downlink will show title, channel, and formats here"}
+                      {/* Duration and filesize for single URL */}
+                      {previewData && !previewData.is_playlist && (previewData.duration_seconds || previewData.filesize_bytes) && (
+                        <span className="ml-1">
+                          {previewData.duration_seconds && (
+                            <span>· {formatDuration(previewData.duration_seconds)}</span>
+                          )}
+                          {previewData.filesize_bytes && (
+                            <span> · {formatBytes(previewData.filesize_bytes)}</span>
+                          )}
+                        </span>
+                      )}
                     </div>
                     {previewData?.is_playlist && (
                       <div className="mt-2 inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
@@ -641,27 +693,30 @@ export default function Home() {
 
               {/* Preset and toggles */}
               <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-12">
-                <div className="md:col-span-7">
-                  <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">
-                    Preset
-                  </label>
-                  <select
-                    value={presetId}
-                    onChange={(e) => setPresetId(e.target.value)}
-                    className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-zinc-300 dark:border-zinc-800 dark:bg-zinc-950 dark:focus:ring-zinc-700"
-                  >
-                    {PRESETS.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                    {selectedPreset.hint}
+                {/* Only show global preset selector for single URL mode */}
+                {!hasMultipleUrls && (
+                  <div className="md:col-span-7">
+                    <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                      Preset
+                    </label>
+                    <select
+                      value={presetId}
+                      onChange={(e) => setPresetId(e.target.value)}
+                      className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-zinc-300 dark:border-zinc-800 dark:bg-zinc-950 dark:focus:ring-zinc-700"
+                    >
+                      {PRESETS.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                      {selectedPreset.hint}
+                    </div>
                   </div>
-                </div>
+                )}
 
-                <div className="md:col-span-5">
+                <div className={hasMultipleUrls ? "md:col-span-12" : "md:col-span-5"}>
                   <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">
                     Quick toggles
                   </label>
@@ -700,17 +755,19 @@ export default function Home() {
               <div className="mt-4 flex flex-col gap-2 sm:flex-row">
                 <button
                   type="button"
-                  disabled={isSubmitting || !downlink.isTauri || extractedUrls.length === 0}
+                  disabled={isSubmitting || previewLoading || !downlink.isTauri || extractedUrls.length === 0}
                   onClick={handleAddToQueue}
                   className="rounded-xl bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
                 >
                   {isSubmitting
                     ? "Adding…"
-                    : previewData?.is_playlist
-                      ? `Download Playlist (${previewData.playlist_count_hint ?? "?"} items)`
-                      : hasMultipleUrls
-                        ? `Download ${extractedUrls.length} Items`
-                        : "Download"}
+                    : previewLoading
+                      ? "Loading…"
+                      : previewData?.is_playlist
+                        ? `Download Playlist (${previewData.playlist_count_hint ?? "?"} items)`
+                        : hasMultipleUrls
+                          ? `Download ${extractedUrls.length} Items`
+                          : "Download"}
                 </button>
 
                 <div className="flex-1" />

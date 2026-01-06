@@ -138,6 +138,7 @@ pub struct FetchMetadataResult {
     uploader: Option<String>,
     duration_seconds: Option<u64>,
     thumbnail_url: Option<String>,
+    filesize_bytes: Option<u64>,
     playlist_title: Option<String>,
     playlist_count_hint: Option<u64>,
 }
@@ -271,6 +272,7 @@ async fn fetch_metadata(
         uploader: meta.uploader,
         duration_seconds: meta.duration_seconds,
         thumbnail_url: meta.thumbnail_url,
+        filesize_bytes: meta.filesize_bytes,
         playlist_title: meta.playlist_title,
         playlist_count_hint: meta.playlist_count_hint,
     })

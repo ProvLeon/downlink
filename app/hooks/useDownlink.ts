@@ -195,10 +195,19 @@ export function useDownlink(): UseDownlinkReturn {
 
       case "DownloadStopped": {
         const data = event.data as { id: string };
+        // Preserve progress when stopped - only update status and phase
         setQueue((prev) =>
           prev.map((item) =>
             item.id === data.id
-              ? { ...item, status: "stopped" as const, phase: "Stopped" }
+              ? {
+                ...item,
+                status: "stopped" as const,
+                phase: "Stopped",
+                // Clear speed and ETA since we're not downloading anymore
+                speed_bps: null,
+                eta_seconds: null,
+                // Keep progress_percent, bytes_downloaded, bytes_total as-is
+              }
               : item
           )
         );
@@ -396,8 +405,9 @@ export function useDownlink(): UseDownlinkReturn {
 
   const stopDownload = useCallback(async (id: string) => {
     await invoke("stop_download", { id });
-    await refreshQueue();
-  }, [refreshQueue]);
+    // Don't refreshQueue here - the DownloadStopped event handler preserves progress
+    // If we refresh, we'd lose the progress since it's not saved to DB
+  }, []);
 
   const cancelDownload = useCallback(async (id: string) => {
     await invoke("cancel_download", { id });

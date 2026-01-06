@@ -38,6 +38,7 @@ pub struct PreviewMetadata {
     pub uploader: Option<String>,
     pub duration_seconds: Option<u64>,
     pub thumbnail_url: Option<String>,
+    pub filesize_bytes: Option<u64>,
 
     pub is_playlist: bool,
     pub playlist_title: Option<String>,
@@ -356,6 +357,12 @@ fn parse_preview_metadata(json_line: &str, fallback_url: &str) -> Result<Preview
         .and_then(|x| x.as_str())
         .map(|s| s.to_string());
 
+    // Try filesize first, then filesize_approx
+    let filesize_bytes = v
+        .get("filesize")
+        .and_then(|x| x.as_u64())
+        .or_else(|| v.get("filesize_approx").and_then(|x| x.as_u64()));
+
     let is_playlist = v
         .get("_type")
         .and_then(|x| x.as_str())
@@ -381,6 +388,7 @@ fn parse_preview_metadata(json_line: &str, fallback_url: &str) -> Result<Preview
         uploader,
         duration_seconds,
         thumbnail_url,
+        filesize_bytes,
         is_playlist,
         playlist_title,
         playlist_count_hint,
