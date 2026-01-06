@@ -546,7 +546,7 @@
     <main>
         <section class="hero">
             <div class="container">
-                <div class="hero-badge">Version 0.1.0 Available</div>
+                <div class="hero-badge" id="version-badge">Version <span id="latest-version">0.1.1</span> Available</div>
                 <h1>Download videos<br><span>from anywhere</span></h1>
                 <p>A fast, lightweight desktop app</p> for downloading videos from YouTube and 1000+ websites. Powered by yt-dlp with a beautiful, intuitive interface.</p>
                 <div class="hero-actions">
@@ -580,12 +580,12 @@
                         </div>
                         <h3>macOS</h3>
                         <p class="subtitle">macOS 10.15 or later</p>
-                        <a href="https://github.com/ProvLeon/downlink/releases/latest/download/Downlink_0.1.0_aarch64.dmg" class="btn btn-primary">
+                        <a id="macos-download-btn" href="https://github.com/ProvLeon/downlink/releases/latest" class="btn btn-primary">
                             Download .dmg
                         </a>
                         <div class="alt-downloads">
-                            <a href="https://github.com/ProvLeon/downlink/releases/latest/download/Downlink_0.1.0_aarch64.dmg">Apple Silicon</a>
-                            <a href="https://github.com/ProvLeon/downlink/releases/latest/download/Downlink_0.1.0_x64.dmg">Intel</a>
+                            <a id="macos-arm-link" href="https://github.com/ProvLeon/downlink/releases/latest">Apple Silicon</a>
+                            <a id="macos-intel-link" href="https://github.com/ProvLeon/downlink/releases/latest">Intel</a>
                         </div>
                     </div>
 
@@ -597,12 +597,12 @@
                         </div>
                         <h3>Windows</h3>
                         <p class="subtitle">Windows 10 or later</p>
-                        <a href="https://github.com/ProvLeon/downlink/releases/latest/download/Downlink_0.1.0_x64-setup.exe" class="btn btn-primary">
+                        <a id="windows-download-btn" href="https://github.com/ProvLeon/downlink/releases/latest" class="btn btn-primary">
                             Download .exe
                         </a>
                         <div class="alt-downloads">
-                            <a href="https://github.com/ProvLeon/downlink/releases/latest/download/Downlink_0.1.0_x64-setup.exe">.exe Installer</a>
-                            <a href="https://github.com/ProvLeon/downlink/releases/latest/download/Downlink_0.1.0_x64_en-US.msi">.msi Package</a>
+                            <a id="windows-exe-link" href="https://github.com/ProvLeon/downlink/releases/latest">.exe Installer</a>
+                            <a id="windows-msi-link" href="https://github.com/ProvLeon/downlink/releases/latest">.msi Package</a>
                         </div>
                     </div>
 
@@ -614,13 +614,13 @@
                         </div>
                         <h3>Linux</h3>
                         <p class="subtitle">Ubuntu, Fedora, Arch</p>
-                        <a href="https://github.com/ProvLeon/downlink/releases/latest/download/downlink_0.1.0_amd64.AppImage" class="btn btn-primary">
+                        <a id="linux-download-btn" href="https://github.com/ProvLeon/downlink/releases/latest" class="btn btn-primary">
                             Download AppImage
                         </a>
                         <div class="alt-downloads">
-                            <a href="https://github.com/ProvLeon/downlink/releases/latest/download/downlink_0.1.0_amd64.deb">.deb</a>
-                            <a href="https://github.com/ProvLeon/downlink/releases/latest/download/downlink_0.1.0_amd64.rpm">.rpm</a>
-                            <a href="https://github.com/ProvLeon/downlink/releases/latest/download/downlink_0.1.0_amd64.AppImage">AppImage</a>
+                            <a id="linux-deb-link" href="https://github.com/ProvLeon/downlink/releases/latest">.deb</a>
+                            <a id="linux-rpm-link" href="https://github.com/ProvLeon/downlink/releases/latest">.rpm</a>
+                            <a id="linux-appimage-link" href="https://github.com/ProvLeon/downlink/releases/latest">AppImage</a>
                         </div>
                     </div>
                 </div>
@@ -728,6 +728,102 @@
     </footer>
 
     <script>
+        // GitHub repository info
+        const GITHUB_OWNER = 'ProvLeon';
+        const GITHUB_REPO = 'downlink';
+        const GITHUB_API_URL = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`;
+
+        // Fetch latest release info from GitHub
+        async function fetchLatestRelease() {
+            try {
+                const response = await fetch(GITHUB_API_URL);
+                if (!response.ok) {
+                    console.warn('Failed to fetch release info:', response.status);
+                    return null;
+                }
+                return await response.json();
+            } catch (error) {
+                console.warn('Error fetching release:', error);
+                return null;
+            }
+        }
+
+        // Update the page with latest release info
+        async function updateReleaseInfo() {
+            const release = await fetchLatestRelease();
+            if (!release) return;
+
+            // Update version badge
+            const version = release.tag_name.replace(/^v/, '');
+            const versionSpan = document.getElementById('latest-version');
+            if (versionSpan) {
+                versionSpan.textContent = version;
+            }
+
+            // Find download assets
+            const assets = release.assets || [];
+
+            // Helper to find asset by pattern
+            const findAsset = (patterns) => {
+                for (const pattern of patterns) {
+                    const asset = assets.find(a => a.name.toLowerCase().includes(pattern.toLowerCase()));
+                    if (asset) return asset.browser_download_url;
+                }
+                return null;
+            };
+
+            // Update macOS download links
+            const macosArmUrl = findAsset(['aarch64.dmg', 'arm64.dmg', '_aarch64.dmg']);
+            const macosIntelUrl = findAsset(['x64.dmg', 'x86_64.dmg', '_x64.dmg']);
+
+            const macosDownloadBtn = document.getElementById('macos-download-btn');
+            const macosArmLink = document.getElementById('macos-arm-link');
+            const macosIntelLink = document.getElementById('macos-intel-link');
+
+            if (macosDownloadBtn && macosArmUrl) {
+                // Detect if user is on Apple Silicon
+                const isAppleSilicon = navigator.userAgent.includes('Mac') &&
+                    (navigator.userAgent.includes('ARM') || window.navigator.platform === 'MacIntel');
+                macosDownloadBtn.href = macosArmUrl; // Default to ARM
+            }
+            if (macosArmLink && macosArmUrl) macosArmLink.href = macosArmUrl;
+            if (macosIntelLink && macosIntelUrl) macosIntelLink.href = macosIntelUrl;
+
+            // Update Windows download links
+            const windowsExeUrl = findAsset(['x64-setup.exe', 'x64_setup.exe', 'setup.exe']);
+            const windowsMsiUrl = findAsset(['.msi']);
+
+            const windowsDownloadBtn = document.getElementById('windows-download-btn');
+            const windowsExeLink = document.getElementById('windows-exe-link');
+            const windowsMsiLink = document.getElementById('windows-msi-link');
+
+            if (windowsDownloadBtn && windowsExeUrl) {
+                windowsDownloadBtn.href = windowsExeUrl;
+            }
+            if (windowsExeLink && windowsExeUrl) windowsExeLink.href = windowsExeUrl;
+            if (windowsMsiLink && windowsMsiUrl) windowsMsiLink.href = windowsMsiUrl;
+
+            // Update Linux download links
+            const linuxAppImageUrl = findAsset(['.appimage', 'AppImage']);
+            const linuxDebUrl = findAsset(['.deb']);
+            const linuxRpmUrl = findAsset(['.rpm']);
+
+            const linuxDownloadBtn = document.getElementById('linux-download-btn');
+            const linuxAppImageLink = document.getElementById('linux-appimage-link');
+            const linuxDebLink = document.getElementById('linux-deb-link');
+            const linuxRpmLink = document.getElementById('linux-rpm-link');
+
+            if (linuxDownloadBtn && linuxAppImageUrl) linuxDownloadBtn.href = linuxAppImageUrl;
+            if (linuxAppImageLink && linuxAppImageUrl) linuxAppImageLink.href = linuxAppImageUrl;
+            if (linuxDebLink && linuxDebUrl) linuxDebLink.href = linuxDebUrl;
+            if (linuxRpmLink && linuxRpmUrl) linuxRpmLink.href = linuxRpmUrl;
+
+            console.log(`Updated download links to version ${version}`);
+        }
+
+        // Initialize release info on page load
+        updateReleaseInfo();
+
         // Header scroll effect
         const header = document.getElementById('header');
         window.addEventListener('scroll', () => {
