@@ -171,12 +171,24 @@ jobs:
         run: ls -la src-tauri/binaries/
         shell: bash
 
+      - name: Debug signing key
+        shell: bash
+        run: |
+          if [ -n "${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}" ]; then
+            echo "✅ TAURI_SIGNING_PRIVATE_KEY is set"
+            echo "Key length: ${#TAURI_SIGNING_PRIVATE_KEY}"
+            echo "Key starts with: ${TAURI_SIGNING_PRIVATE_KEY:0:20}..."
+          else
+            echo "❌ TAURI_SIGNING_PRIVATE_KEY is NOT set or empty"
+          fi
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ github.event.inputs.tag || github.ref_name }}
           releaseName: "Downlink ${{ github.event.inputs.tag || github.ref_name }}"
@@ -186,6 +198,51 @@ jobs:
           includeUpdaterJson: true
           updaterJsonKeepUniversal: true
           args: --target ${{ matrix.target }}
+
+      - name: List generated signature files
+        shell: bash
+        run: |
+          echo "Looking for .sig files..."
+          find src-tauri/target/${{ matrix.target }}/release/bundle -name "*.sig" -type f 2>/dev/null || echo "No sig files found"
+
+      - name: Upload signature files to release
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+
+          # Get release ID
+          RELEASE_ID=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/tags/$TAG" | jq -r '.id')
+
+          echo "Release ID: $RELEASE_ID"
+
+          # Find and upload all .sig files
+          find src-tauri/target/${{ matrix.target }}/release/bundle -name "*.sig" -type f | while read sig_file; do
+            filename=$(basename "$sig_file")
+            echo "Uploading $filename..."
+
+            # Check if asset already exists and delete it
+            EXISTING_ID=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+              "https://api.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID/assets" | \
+              jq -r ".[] | select(.name == \"$filename\") | .id")
+
+            if [ -n "$EXISTING_ID" ] && [ "$EXISTING_ID" != "null" ]; then
+              echo "Deleting existing asset $filename..."
+              curl -s -X DELETE -H "Authorization: token $GITHUB_TOKEN" \
+                "https://api.github.com/repos/${{ github.repository }}/releases/assets/$EXISTING_ID"
+            fi
+
+            # Upload the sig file
+            curl -s -X POST \
+              -H "Authorization: token $GITHUB_TOKEN" \
+              -H "Content-Type: application/octet-stream" \
+              --data-binary @"$sig_file" \
+              "https://uploads.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID/assets?name=$filename"
+
+            echo "Uploaded $filename"
+          done
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
