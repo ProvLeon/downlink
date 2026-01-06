@@ -134,7 +134,7 @@ export function QueueItemComponent({
             <button
               type="button"
               onClick={handleStart}
-              className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs font-medium hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+              className="cursor-pointer rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs font-medium hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800"
               title="Start download"
             >
               Start
@@ -145,7 +145,7 @@ export function QueueItemComponent({
             <button
               type="button"
               onClick={handleStop}
-              className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs font-medium hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+              className="cursor-pointer rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs font-medium hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800"
               title="Stop download"
             >
               Stop
@@ -156,7 +156,7 @@ export function QueueItemComponent({
             <button
               type="button"
               onClick={handleStart}
-              className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs font-medium hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+              className="cursor-pointer rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs font-medium hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800"
               title="Resume download"
             >
               Resume
@@ -167,7 +167,7 @@ export function QueueItemComponent({
             <button
               type="button"
               onClick={handleRetry}
-              className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs font-medium hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+              className="cursor-pointer rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs font-medium hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800"
               title="Retry download"
             >
               Retry
@@ -178,7 +178,7 @@ export function QueueItemComponent({
             <button
               type="button"
               onClick={handleOpenFile}
-              className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs font-medium hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+              className="cursor-pointer rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs font-medium hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800"
               title="Open file"
             >
               Open
@@ -190,7 +190,7 @@ export function QueueItemComponent({
             <button
               type="button"
               onClick={handleOpenFolder}
-              className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs font-medium hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+              className="cursor-pointer rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs font-medium hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800"
               title={isDone ? "Reveal in folder" : "Open download folder"}
             >
               Folder
@@ -201,7 +201,7 @@ export function QueueItemComponent({
             <button
               type="button"
               onClick={handleRemove}
-              className="rounded-lg border border-red-200 bg-white px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 dark:border-red-900 dark:bg-zinc-900 dark:hover:bg-red-950"
+              className="cursor-pointer rounded-lg border border-red-200 bg-white px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 dark:border-red-900 dark:bg-zinc-900 dark:hover:bg-red-950"
               title="Remove from queue"
             >
               Remove
@@ -212,7 +212,7 @@ export function QueueItemComponent({
             <button
               type="button"
               onClick={handleCancel}
-              className="rounded-lg border border-red-200 bg-white px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 dark:border-red-900 dark:bg-zinc-900 dark:hover:bg-red-950"
+              className="cursor-pointer rounded-lg border border-red-200 bg-white px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 dark:border-red-900 dark:bg-zinc-900 dark:hover:bg-red-950"
               title="Cancel download"
             >
               Cancel

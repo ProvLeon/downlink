@@ -840,8 +840,21 @@ pub fn run() {
             // Initialize per-user dirs + SQLite
             let db = db::Db::open().map_err(|e| tauri::Error::Anyhow(e))?;
 
-            // Initialize tool manager (sync, no runtime needed)
-            let tool_config = ToolManagerConfig::default();
+            // Initialize tool manager with bundled_dir set to executable directory
+            // In production, Tauri places sidecar binaries next to the executable
+            let bundled_dir = std::env::current_exe()
+                .ok()
+                .and_then(|exe| exe.parent().map(|p| p.to_path_buf()));
+
+            let tool_config = if let Some(dir) = bundled_dir {
+                log::info!("Setting bundled_dir to: {:?}", dir);
+                tool_manager::ToolManagerConfigBuilder::new()
+                    .bundled_dir(dir)
+                    .build()
+            } else {
+                log::warn!("Could not determine executable directory, using default config");
+                ToolManagerConfig::default()
+            };
             let tool_manager = ToolManager::new(tool_config).ok().map(Arc::new);
 
             // Store state - download manager will be lazily initialized on first use

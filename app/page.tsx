@@ -1,12 +1,21 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useDownlink } from "./hooks/useDownlink";
 import { QueueItemComponent } from "./components/QueueItem";
 import { SettingsModal } from "./components/SettingsModal";
 import { AdvancedOptions, DEFAULT_OPTIONS, type AdvancedOptionsState } from "./components/AdvancedOptions";
 import type { PresetWithHint, UserSettings, FetchMetadataResult } from "./types";
 import Image from "next/image";
+
+// Preview data for multiple URLs
+interface UrlPreview {
+  url: string;
+  loading: boolean;
+  data: FetchMetadataResult | null;
+  error: string | null;
+  presetId: string; // Per-URL preset selection
+}
 
 const PRESETS: PresetWithHint[] = [
   { id: "recommended_best", name: "Recommended (Best)", hint: "Best quality, merges automatically" },
@@ -37,17 +46,11 @@ export default function Home() {
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [advancedOptions, setAdvancedOptions] = useState<AdvancedOptionsState>(DEFAULT_OPTIONS);
 
-  // Preview state
-  const [previewLoading, setPreviewLoading] = useState(false);
-  const [previewData, setPreviewData] = useState<FetchMetadataResult | null>(null);
-  const [previewError, setPreviewError] = useState<string | null>(null);
+  // Preview state - now supports multiple URLs
+  const [urlPreviews, setUrlPreviews] = useState<Map<string, UrlPreview>>(new Map());
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Derived state
-  const selectedPreset = useMemo(
-    () => PRESETS.find((p) => p.id === presetId) ?? PRESETS[0],
-    [presetId]
-  );
-
+  // Extract URLs from input - must be defined before dependent useMemos
   const extractedUrls = useMemo(() => {
     if (!urlInput.trim()) return [];
     const matches = urlInput.match(/https?:\/\/[^\s]+/g) ?? [];
@@ -64,6 +67,34 @@ export default function Home() {
   }, [urlInput]);
 
   const hasMultipleUrls = extractedUrls.length > 1;
+
+  // Single preview data (for backwards compatibility with single URL)
+  const previewData = useMemo(() => {
+    if (extractedUrls.length === 1) {
+      return urlPreviews.get(extractedUrls[0])?.data ?? null;
+    }
+    return null;
+  }, [extractedUrls, urlPreviews]);
+
+  const previewLoading = useMemo(() => {
+    if (extractedUrls.length === 1) {
+      return urlPreviews.get(extractedUrls[0])?.loading ?? false;
+    }
+    return Array.from(urlPreviews.values()).some(p => p.loading);
+  }, [extractedUrls, urlPreviews]);
+
+  const previewError = useMemo(() => {
+    if (extractedUrls.length === 1) {
+      return urlPreviews.get(extractedUrls[0])?.error ?? null;
+    }
+    return null;
+  }, [extractedUrls, urlPreviews]);
+
+  // Derived state
+  const selectedPreset = useMemo(
+    () => PRESETS.find((p) => p.id === presetId) ?? PRESETS[0],
+    [presetId]
+  );
 
   // Load default destination on mount
   useEffect(() => {
@@ -95,47 +126,91 @@ export default function Home() {
     loadDefaults();
   }, [downlink.isTauri]);
 
-  // Auto-fetch preview when a single URL is entered
+  // Auto-resize textarea based on content
+  const adjustTextareaHeight = useCallback(() => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      textarea.style.height = 'auto';
+      const newHeight = Math.min(Math.max(textarea.scrollHeight, 38), 150);
+      textarea.style.height = `${newHeight}px`;
+    }
+  }, []);
+
   useEffect(() => {
-    if (!downlink.isTauri || extractedUrls.length !== 1) {
-      setPreviewData(null);
-      setPreviewError(null);
+    adjustTextareaHeight();
+  }, [urlInput, adjustTextareaHeight]);
+
+  // Auto-fetch preview for all URLs
+  useEffect(() => {
+    if (!downlink.isTauri || extractedUrls.length === 0) {
+      setUrlPreviews(new Map());
       return;
     }
 
-    const url = extractedUrls[0];
+    // Initialize previews for new URLs
+    const newPreviews = new Map<string, UrlPreview>();
+    const urlsToFetch: string[] = [];
+
+    for (const url of extractedUrls) {
+      const existing = urlPreviews.get(url);
+      if (existing) {
+        newPreviews.set(url, existing);
+      } else {
+        newPreviews.set(url, { url, loading: true, data: null, error: null, presetId: presetId });
+        urlsToFetch.push(url);
+      }
+    }
+
+    // Remove previews for URLs no longer in the list
+    setUrlPreviews(newPreviews);
+
+    // Fetch metadata for new URLs
+    if (urlsToFetch.length === 0) return;
+
     let cancelled = false;
 
-    const fetchPreview = async () => {
-      setPreviewLoading(true);
-      setPreviewError(null);
-      setPreviewData(null);
+    const fetchAllPreviews = async () => {
+      for (const url of urlsToFetch) {
+        if (cancelled) break;
 
-      try {
-        const result = await downlink.fetchMetadata(url, {
-          preset_id: presetId,
-          output_dir: destination,
-        });
-        if (!cancelled) {
-          setPreviewData(result);
-        }
-      } catch (e) {
-        if (!cancelled) {
-          setPreviewError(e instanceof Error ? e.message : "Failed to fetch preview");
-        }
-      } finally {
-        if (!cancelled) {
-          setPreviewLoading(false);
+        try {
+          const result = await downlink.fetchMetadata(url, {
+            preset_id: presetId,
+            output_dir: destination,
+          });
+          if (!cancelled) {
+            setUrlPreviews(prev => {
+              const updated = new Map(prev);
+              const existing = prev.get(url);
+              updated.set(url, { url, loading: false, data: result, error: null, presetId: existing?.presetId ?? presetId });
+              return updated;
+            });
+          }
+        } catch (e) {
+          if (!cancelled) {
+            setUrlPreviews(prev => {
+              const updated = new Map(prev);
+              const existing = prev.get(url);
+              updated.set(url, {
+                url,
+                loading: false,
+                data: null,
+                error: e instanceof Error ? e.message : "Failed to fetch",
+                presetId: existing?.presetId ?? presetId,
+              });
+              return updated;
+            });
+          }
         }
       }
     };
 
-    const timeout = setTimeout(fetchPreview, 500);
+    const timeout = setTimeout(fetchAllPreviews, 500);
     return () => {
       cancelled = true;
       clearTimeout(timeout);
     };
-  }, [downlink.isTauri, extractedUrls, presetId, destination]);
+  }, [downlink.isTauri, extractedUrls.join(','), presetId, destination]);
 
   // Handlers
   const handlePasteClick = useCallback(async () => {
@@ -148,6 +223,18 @@ export default function Home() {
     }
   }, []);
 
+  // Handler to update preset for a specific URL
+  const handleUrlPresetChange = useCallback((url: string, newPresetId: string) => {
+    setUrlPreviews(prev => {
+      const updated = new Map(prev);
+      const existing = prev.get(url);
+      if (existing) {
+        updated.set(url, { ...existing, presetId: newPresetId });
+      }
+      return updated;
+    });
+  }, []);
+
   const handleAddToQueue = useCallback(async () => {
     if (!downlink.isTauri || extractedUrls.length === 0) return;
 
@@ -155,38 +242,69 @@ export default function Home() {
     setSubmitError(null);
 
     try {
-      // Always use addUrls to insert into the database
-      // fetch_metadata no longer creates DB entries - it's just for preview
-      const result = await downlink.addUrls(urlInput, {
-        preset_id: presetId,
-        output_dir: destination,
-        parent_id: null,
-        source_kind: previewData?.is_playlist ? "playlist_parent" : "single",
-        // Pass along preview metadata if available (convert undefined to null explicitly)
-        title: previewData?.title ?? null,
-        uploader: previewData?.uploader ?? null,
-        thumbnail_url: previewData?.thumbnail_url ?? null,
-        duration_seconds: previewData?.duration_seconds ?? null,
-      });
+      const allIds: string[] = [];
 
-      // If it's a playlist, expand it
-      if (previewData?.is_playlist && result.ids.length > 0) {
-        await downlink.expandPlaylist(extractedUrls[0], {
+      // For multiple URLs, submit each with its own preset
+      if (hasMultipleUrls) {
+        for (const url of extractedUrls) {
+          const preview = urlPreviews.get(url);
+          const urlPresetId = preview?.presetId ?? presetId;
+
+          const result = await downlink.addUrls(url, {
+            preset_id: urlPresetId,
+            output_dir: destination,
+            parent_id: null,
+            source_kind: preview?.data?.is_playlist ? "playlist_parent" : "single",
+            title: preview?.data?.title ?? null,
+            uploader: preview?.data?.uploader ?? null,
+            thumbnail_url: preview?.data?.thumbnail_url ?? null,
+            duration_seconds: preview?.data?.duration_seconds ?? null,
+          });
+
+          // If it's a playlist, expand it
+          if (preview?.data?.is_playlist && result.ids.length > 0) {
+            await downlink.expandPlaylist(url, {
+              preset_id: urlPresetId,
+              output_dir: destination,
+            });
+          }
+
+          allIds.push(...result.ids);
+        }
+      } else {
+        // Single URL - use the global preset
+        const result = await downlink.addUrls(urlInput, {
           preset_id: presetId,
           output_dir: destination,
+          parent_id: null,
+          source_kind: previewData?.is_playlist ? "playlist_parent" : "single",
+          title: previewData?.title ?? null,
+          uploader: previewData?.uploader ?? null,
+          thumbnail_url: previewData?.thumbnail_url ?? null,
+          duration_seconds: previewData?.duration_seconds ?? null,
         });
+
+        // If it's a playlist, expand it
+        if (previewData?.is_playlist && result.ids.length > 0) {
+          await downlink.expandPlaylist(extractedUrls[0], {
+            preset_id: presetId,
+            output_dir: destination,
+          });
+        }
+
+        allIds.push(...result.ids);
       }
 
       // Auto-start if enabled
-      if (settings?.general.auto_start !== false && result.ids.length > 0) {
-        for (const id of result.ids) {
+      if (settings?.general.auto_start !== false && allIds.length > 0) {
+        for (const id of allIds) {
           await downlink.startDownload(id);
         }
       }
 
       // Clear input
       setUrlInput("");
-      setPreviewData(null);
+      setUrlPreviews(new Map());
       setTab("queue");
     } catch (e) {
       console.error("[Downlink] Failed to add to queue:", e);
@@ -197,6 +315,8 @@ export default function Home() {
   }, [
     downlink,
     extractedUrls,
+    hasMultipleUrls,
+    urlPreviews,
     previewData,
     urlInput,
     presetId,
@@ -286,13 +406,16 @@ export default function Home() {
               >
                 URL {hasMultipleUrls && `(${extractedUrls.length} URLs detected)`}
               </label>
-              <div className="flex gap-2">
-                <input
+              <div className="flex gap-2 items-start">
+                <textarea
+                  ref={textareaRef}
                   id="downlink-url"
                   value={urlInput}
                   onChange={(e) => setUrlInput(e.target.value)}
                   placeholder="Paste a video/playlist link… (or multiple links)"
-                  className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-zinc-300 dark:border-zinc-800 dark:bg-zinc-950 dark:focus:ring-zinc-700"
+                  className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-zinc-300 dark:border-zinc-800 dark:bg-zinc-950 dark:focus:ring-zinc-700 resize-none overflow-hidden"
+                  rows={1}
+                  style={{ minHeight: '38px' }}
                 />
                 <button
                   type="button"
@@ -350,79 +473,171 @@ export default function Home() {
           {/* Preview + actions */}
           <div className="md:col-span-7">
             <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-              {/* Preview area */}
-              <div className="flex items-start gap-4">
-                {/* Thumbnail */}
-                <div className="shrink-0">
-                  {previewData?.thumbnail_url ? (
-                    <img
-                      src={previewData.thumbnail_url}
-                      alt=""
-                      className="h-20 w-32 rounded-xl object-cover bg-zinc-200 dark:bg-zinc-800"
-                    />
-                  ) : (
-                    <div className="h-20 w-32 rounded-xl bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center">
-                      {previewLoading ? (
-                        <div className="h-6 w-6 animate-spin rounded-full border-2 border-zinc-400 border-t-transparent" />
-                      ) : (
-                        <svg
-                          className="w-8 h-8 text-zinc-400"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
-                          />
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                          />
-                        </svg>
-                      )}
-                    </div>
-                  )}
-                </div>
+              {/* Preview area - Multiple URLs */}
+              {hasMultipleUrls ? (
+                <div className="space-y-3 max-h-[300px] overflow-y-auto">
+                  <div className="text-xs font-medium text-zinc-500 dark:text-zinc-400 sticky top-0 bg-white dark:bg-zinc-900 pb-2">
+                    {extractedUrls.length} URLs to download
+                  </div>
+                  {extractedUrls.map((url, index) => {
+                    const preview = urlPreviews.get(url);
+                    return (
+                      <div
+                        key={url}
+                        className="flex items-start gap-3 p-2 rounded-xl bg-zinc-100 dark:bg-zinc-800"
+                      >
+                        {/* Thumbnail */}
+                        <div className="shrink-0">
+                          {preview?.data?.thumbnail_url ? (
+                            <img
+                              src={preview.data.thumbnail_url}
+                              alt=""
+                              className="h-12 w-20 rounded-lg object-cover bg-zinc-200 dark:bg-zinc-800"
+                            />
+                          ) : (
+                            <div className="h-12 w-20 rounded-lg bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center">
+                              {preview?.loading ? (
+                                <div className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-400 border-t-transparent" />
+                              ) : (
+                                <svg
+                                  className="w-5 h-5 text-zinc-400"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
+                                  />
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                                  />
+                                </svg>
+                              )}
+                            </div>
+                          )}
+                        </div>
 
-                {/* Info */}
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm font-semibold">
-                    {previewLoading
-                      ? "Fetching preview…"
-                      : previewData?.title
-                        ? previewData.title
-                        : hasMultipleUrls
-                          ? `${extractedUrls.length} URLs ready to add`
+                        {/* Info */}
+                        <div className="min-w-0 flex-1">
+                          <div className="text-sm font-medium truncate" style={{ color: 'var(--foreground)' }}>
+                            {preview?.loading
+                              ? "Fetching…"
+                              : preview?.data?.title
+                                ? preview.data.title
+                                : preview?.error
+                                  ? `Error: ${preview.error}`
+                                  : `Video ${index + 1}`}
+                          </div>
+                          <div className="text-xs truncate" style={{ color: 'var(--foreground)', opacity: 0.7 }}>
+                            {preview?.data?.uploader ?? url}
+                          </div>
+                          {preview?.data?.is_playlist && (
+                            <span className="inline-flex items-center gap-1 mt-1 rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                              Playlist ({preview.data.playlist_count_hint ?? "?"})
+                            </span>
+                          )}
+                          {/* Per-URL preset selector */}
+                          <select
+                            value={preview?.presetId ?? presetId}
+                            onChange={(e) => handleUrlPresetChange(url, e.target.value)}
+                            className="mt-1.5 text-xs bg-zinc-200 dark:bg-zinc-700 border-0 rounded-md px-1.5 py-0.5 focus:ring-1 focus:ring-blue-500"
+                            style={{ color: 'var(--foreground)' }}
+                          >
+                            {PRESETS.map((p) => (
+                              <option key={p.id} value={p.id}>
+                                {p.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* Index badge */}
+                        <div className="shrink-0 flex items-center justify-center h-6 w-6 rounded-full bg-zinc-200 dark:bg-zinc-700 text-xs font-medium" style={{ color: 'var(--foreground)' }}>
+                          {index + 1}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                /* Single URL preview */
+                <div className="flex items-start gap-4">
+                  {/* Thumbnail */}
+                  <div className="shrink-0">
+                    {previewData?.thumbnail_url ? (
+                      <img
+                        src={previewData.thumbnail_url}
+                        alt=""
+                        className="h-20 w-32 rounded-xl object-cover bg-zinc-200 dark:bg-zinc-800"
+                      />
+                    ) : (
+                      <div className="h-20 w-32 rounded-xl bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center">
+                        {previewLoading ? (
+                          <div className="h-6 w-6 animate-spin rounded-full border-2 border-zinc-400 border-t-transparent" />
+                        ) : (
+                          <svg
+                            className="w-8 h-8 text-zinc-400"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
+                            />
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                            />
+                          </svg>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Info */}
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-semibold">
+                      {previewLoading
+                        ? "Fetching preview…"
+                        : previewData?.title
+                          ? previewData.title
                           : urlInput.trim()
                             ? "Ready to fetch preview"
                             : "Paste a link to preview"}
-                  </div>
-                  <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                    {previewError
-                      ? previewError
-                      : previewData?.uploader
-                        ? previewData.uploader
-                        : previewData?.is_playlist
-                          ? `Playlist: ${previewData.playlist_count_hint ?? "?"} items`
-                          : urlInput.trim()
-                            ? "Metadata preview will appear here"
-                            : "Downlink will show title, channel, and formats here"}
-                  </div>
-                  {previewData?.is_playlist && (
-                    <div className="mt-2 inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
-                      <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
-                        <path d="M2 4a1 1 0 011-1h11a1 1 0 110 2H3a1 1 0 01-1-1zm0 4a1 1 0 011-1h11a1 1 0 110 2H3a1 1 0 01-1-1zm0 4a1 1 0 011-1h7a1 1 0 110 2H3a1 1 0 01-1-1z" />
-                      </svg>
-                      Playlist ({previewData.playlist_count_hint ?? "?"} items)
                     </div>
-                  )}
+                    <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                      {previewError
+                        ? previewError
+                        : previewData?.uploader
+                          ? previewData.uploader
+                          : previewData?.is_playlist
+                            ? `Playlist: ${previewData.playlist_count_hint ?? "?"} items`
+                            : urlInput.trim()
+                              ? "Metadata preview will appear here"
+                              : "Downlink will show title, channel, and formats here"}
+                    </div>
+                    {previewData?.is_playlist && (
+                      <div className="mt-2 inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                        <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M2 4a1 1 0 011-1h11a1 1 0 110 2H3a1 1 0 01-1-1zm0 4a1 1 0 011-1h11a1 1 0 110 2H3a1 1 0 01-1-1zm0 4a1 1 0 011-1h7a1 1 0 110 2H3a1 1 0 01-1-1z" />
+                        </svg>
+                        Playlist ({previewData.playlist_count_hint ?? "?"} items)
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Preset and toggles */}
               <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-12">

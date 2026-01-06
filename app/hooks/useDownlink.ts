@@ -229,6 +229,34 @@ export function useDownlink(): UseDownlinkReturn {
         break;
       }
 
+      case "MetadataReady": {
+        const data = event.data as {
+          id: string;
+          info: {
+            title: string | null;
+            uploader: string | null;
+            duration_seconds: number | null;
+            thumbnail_url: string | null;
+            webpage_url: string | null;
+          };
+        };
+        console.log("[Downlink] MetadataReady for", data.id, "title:", data.info.title);
+        setQueue((prev) =>
+          prev.map((item) =>
+            item.id === data.id
+              ? {
+                ...item,
+                title: data.info.title ?? item.title,
+                uploader: data.info.uploader ?? item.uploader,
+                thumbnail_url: data.info.thumbnail_url ?? item.thumbnail_url,
+                duration_seconds: data.info.duration_seconds ?? item.duration_seconds,
+              }
+              : item
+          )
+        );
+        break;
+      }
+
       case "DownloadPostProcessing": {
         const data = event.data as { id: string; step: string };
         setQueue((prev) =>

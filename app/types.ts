@@ -24,6 +24,7 @@ export interface QueueItem {
   title: string | null;
   uploader: string | null;
   thumbnail_url: string | null;
+  duration_seconds: number | null;
   status: DownloadStatus;
   phase: string | null;
   progress_percent: number | null;

@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::Stdio;
 use std::sync::Arc;
+use std::time::Duration;
 
 use anyhow::{anyhow, Result};
 use regex::Regex;
@@ -17,7 +18,9 @@ use tokio::sync::{broadcast, mpsc, Mutex, RwLock};
 use uuid::Uuid;
 
 use crate::db::{Db, DownloadStatus};
-use crate::events::{self, Action, ActionKind, DownlinkEvent, ErrorCode, Phase, Progress};
+use crate::events::{
+    self, Action, ActionKind, DownlinkEvent, ErrorCode, MediaInfo, Phase, Progress,
+};
 
 /// Configuration for download execution.
 #[derive(Debug, Clone)]
@@ -104,6 +107,79 @@ pub fn find_ytdlp_binary() -> PathBuf {
     // Last resort - hope it's in PATH
     log::warn!("Could not find yt-dlp in common paths, falling back to PATH lookup");
     PathBuf::from("yt-dlp")
+}
+
+/// Metadata fetched for a URL
+#[derive(Debug, Clone)]
+pub struct FetchedMetadata {
+    pub title: Option<String>,
+    pub uploader: Option<String>,
+    pub duration_seconds: Option<u64>,
+    pub thumbnail_url: Option<String>,
+}
+
+/// Fetch metadata for a single URL using yt-dlp --dump-json
+async fn fetch_metadata_for_url(yt_dlp_path: &PathBuf, url: &str) -> Option<FetchedMetadata> {
+    use tokio::process::Command;
+
+    let output = tokio::time::timeout(
+        Duration::from_secs(15),
+        Command::new(yt_dlp_path)
+            .args([
+                "--dump-json",
+                "--no-warnings",
+                "--no-call-home",
+                "--no-playlist",
+                url,
+            ])
+            .output(),
+    )
+    .await;
+
+    match output {
+        Ok(Ok(output)) if output.status.success() => {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            // Parse first line as JSON
+            if let Some(line) = stdout.lines().next() {
+                if let Ok(json) = serde_json::from_str::<serde_json::Value>(line) {
+                    return Some(FetchedMetadata {
+                        title: json
+                            .get("title")
+                            .and_then(|v| v.as_str())
+                            .map(|s| s.to_string()),
+                        uploader: json
+                            .get("uploader")
+                            .and_then(|v| v.as_str())
+                            .map(|s| s.to_string()),
+                        duration_seconds: json.get("duration").and_then(|v| v.as_u64()).or_else(
+                            || {
+                                json.get("duration")
+                                    .and_then(|v| v.as_f64())
+                                    .map(|f| f as u64)
+                            },
+                        ),
+                        thumbnail_url: json
+                            .get("thumbnail")
+                            .and_then(|v| v.as_str())
+                            .map(|s| s.to_string()),
+                    });
+                }
+            }
+            None
+        }
+        Ok(Ok(_)) => {
+            log::warn!("yt-dlp metadata fetch failed for {}", url);
+            None
+        }
+        Ok(Err(e)) => {
+            log::warn!("Failed to run yt-dlp for metadata: {}", e);
+            None
+        }
+        Err(_) => {
+            log::warn!("Metadata fetch timed out for {}", url);
+            None
+        }
+    }
 }
 
 /// Find ffmpeg binary by checking bundled sidecar first, then common installation paths.
@@ -302,7 +378,7 @@ impl DownloadManager {
         }
 
         // Get download info from DB
-        let download_info = {
+        let mut download_info = {
             let mut db = self.db.lock().await;
             match db.get_download(id) {
                 Ok(Some(row)) => row,
@@ -327,6 +403,79 @@ impl DownloadManager {
                     download_info.status
                 );
                 return Ok(());
+            }
+        }
+
+        // If the download doesn't have a title, fetch metadata first
+        if download_info.title.is_none() {
+            log::info!("Download {} has no title, fetching metadata first", id);
+
+            // Update status to Fetching
+            {
+                let mut db = self.db.lock().await;
+                let _ = db.set_status(id, DownloadStatus::Fetching, Some("Fetching metadata…"));
+            }
+
+            // Emit progress event for fetching phase
+            let _ = self
+                .event_tx
+                .send(DownlinkEvent::DownloadProgress {
+                    id,
+                    status: events::DownloadStatus::Fetching,
+                    progress: Progress {
+                        percent: None,
+                        bytes_downloaded: None,
+                        bytes_total: None,
+                        speed_bps: None,
+                        eta_seconds: None,
+                        phase: Some(Phase {
+                            name: "Fetching metadata…".to_string(),
+                            detail: None,
+                        }),
+                    },
+                })
+                .await;
+
+            // Fetch metadata using yt-dlp
+            if let Some(metadata) =
+                fetch_metadata_for_url(&self.config.yt_dlp_path, &download_info.source_url).await
+            {
+                log::info!("Fetched metadata for {}: title={:?}", id, metadata.title);
+
+                // Update the database with fetched metadata
+                {
+                    let mut db = self.db.lock().await;
+                    let _ = db.update_metadata(
+                        id,
+                        metadata.title.as_deref(),
+                        metadata.uploader.as_deref(),
+                        metadata.duration_seconds.map(|d| d as i64),
+                        metadata.thumbnail_url.as_deref(),
+                    );
+                }
+
+                // Update local download_info for the progress event
+                download_info.title = metadata.title.clone();
+                download_info.uploader = metadata.uploader.clone();
+                download_info.thumbnail_url = metadata.thumbnail_url.clone();
+                download_info.duration_seconds = metadata.duration_seconds.map(|d| d as i64);
+
+                // Emit MetadataReady event so UI can update the queue display
+                let _ = self
+                    .event_tx
+                    .send(DownlinkEvent::MetadataReady {
+                        id,
+                        info: MediaInfo {
+                            title: metadata.title,
+                            uploader: metadata.uploader,
+                            duration_seconds: metadata.duration_seconds,
+                            thumbnail_url: metadata.thumbnail_url,
+                            webpage_url: Some(download_info.source_url.clone()),
+                        },
+                    })
+                    .await;
+            } else {
+                log::warn!("Failed to fetch metadata for {}, proceeding anyway", id);
             }
         }
 
