@@ -155,7 +155,7 @@ jobs:
 
             ### Changelog
             See the [commit history](https://github.com/${{ github.repository }}/commits/${{ github.event.inputs.tag || github.ref_name }}) for changes.
-          releaseDraft: true
+          releaseDraft: false
           prerelease: false
           args: --target ${{ matrix.target }}
 
