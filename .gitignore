@@ -39,3 +39,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Tauri
+/src-tauri/target/
+
+# Sidecar binaries (downloaded during build)
+/src-tauri/binaries/yt-dlp-*
+/src-tauri/binaries/ffmpeg-*

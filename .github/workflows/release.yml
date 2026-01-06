@@ -64,6 +64,7 @@ jobs:
         run: npm ci
 
       - name: Create binaries directory
+        shell: bash
         run: mkdir -p src-tauri/binaries
 
       # Download yt-dlp
