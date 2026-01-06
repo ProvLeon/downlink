@@ -59,7 +59,7 @@
       "endpoints": [
         "https://github.com/ProvLeon/downlink/releases/latest/download/latest.json"
       ],
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDEwN0UzNDVBMThEMjUxNTQKUldSVVVkSVlXalIrRUZBUkYzMlVRd25XZndEaVZyaHgxcXNBaWZjN2Zya0d1ZlNOTTgyYW9tZnMK"
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEYzN0UwQzFFQzgzODUzQUUKUldTdVV6aklIZ3grODhCL1dWUncyemJyUWZadWNwUHFDcXVyTmdKRkhybzRyTzVYMi9SdEtsNm0K"
     }
   }
 }
