@@ -691,6 +691,11 @@ fn get_app_data_dir() -> Result<String, String> {
 }
 
 #[tauri::command]
+fn get_app_version() -> String {
+    env!("CARGO_PKG_VERSION").to_string()
+}
+
+#[tauri::command]
 fn get_default_download_dir() -> String {
     dirs::download_dir()
         .unwrap_or_else(|| PathBuf::from("~/Downloads"))
@@ -1020,6 +1025,7 @@ pub fn run() {
             get_presets,
             // Utilities
             get_app_data_dir,
+            get_app_version,
             get_default_download_dir,
             open_file,
             open_folder,

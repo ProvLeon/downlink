@@ -362,6 +362,15 @@ export function useDownlink(): UseDownlinkReturn {
 
     const loadInitialData = async () => {
       try {
+        // Fetch app version first (since AppReady event may have been missed)
+        try {
+          const version = await invoke<string>("get_app_version");
+          setAppVersion(version);
+          setIsReady(true);
+        } catch (e) {
+          console.warn("Failed to get app version:", e);
+        }
+
         await refreshQueue();
         await refreshHistory();
 
