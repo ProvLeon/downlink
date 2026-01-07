@@ -2,6 +2,8 @@
 
 import { invoke } from "@tauri-apps/api/core";
 import { listen, UnlistenFn } from "@tauri-apps/api/event";
+import { check } from "@tauri-apps/plugin-updater";
+import { relaunch } from "@tauri-apps/plugin-process";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   AddUrlsOptions,
@@ -540,11 +542,29 @@ export function useDownlink(): UseDownlinkReturn {
   }, []);
 
   const installAppUpdate = useCallback(async (): Promise<void> => {
-    await invoke("install_app_update");
+    // Use the official Tauri updater plugin for proper update installation
+    const update = await check();
+    if (update) {
+      console.log(`Installing update ${update.version}...`);
+      await update.downloadAndInstall((event) => {
+        switch (event.event) {
+          case "Started":
+            console.log(`Started downloading update, size: ${event.data.contentLength}`);
+            break;
+          case "Progress":
+            console.log(`Downloaded chunk: ${event.data.chunkLength} bytes`);
+            break;
+          case "Finished":
+            console.log("Download finished");
+            break;
+        }
+      });
+    }
   }, []);
 
   const restartApp = useCallback(async (): Promise<void> => {
-    await invoke("restart_app");
+    // Use the official Tauri process plugin for proper restart after update
+    await relaunch();
   }, []);
 
   // Presets
