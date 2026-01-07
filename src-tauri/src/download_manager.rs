@@ -9,6 +9,13 @@ use std::process::Stdio;
 use std::sync::Arc;
 use std::time::Duration;
 
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
+
+/// Windows flag to prevent console window from appearing when spawning processes.
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
 use anyhow::{anyhow, Result};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -91,6 +98,7 @@ pub fn find_ytdlp_binary() -> PathBuf {
     }
 
     // Try which command as fallback (works in dev mode)
+    #[cfg(not(windows))]
     if let Ok(output) = std::process::Command::new("which").arg("yt-dlp").output() {
         if output.status.success() {
             let path_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
@@ -122,19 +130,20 @@ pub struct FetchedMetadata {
 async fn fetch_metadata_for_url(yt_dlp_path: &PathBuf, url: &str) -> Option<FetchedMetadata> {
     use tokio::process::Command;
 
-    let output = tokio::time::timeout(
-        Duration::from_secs(15),
-        Command::new(yt_dlp_path)
-            .args([
-                "--dump-json",
-                "--no-warnings",
-                "--no-call-home",
-                "--no-playlist",
-                url,
-            ])
-            .output(),
-    )
-    .await;
+    let mut cmd = Command::new(yt_dlp_path);
+    cmd.args([
+        "--dump-json",
+        "--no-warnings",
+        "--no-call-home",
+        "--no-playlist",
+        url,
+    ]);
+
+    // Hide console window on Windows
+    #[cfg(windows)]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+
+    let output = tokio::time::timeout(Duration::from_secs(15), cmd.output()).await;
 
     match output {
         Ok(Ok(output)) if output.status.success() => {
@@ -219,7 +228,8 @@ pub fn find_ffmpeg_binary() -> Option<PathBuf> {
         }
     }
 
-    // Try which command as fallback
+    // Try which command as fallback (Unix only)
+    #[cfg(not(windows))]
     if let Ok(output) = std::process::Command::new("which").arg("ffmpeg").output() {
         if output.status.success() {
             let path_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
@@ -668,6 +678,10 @@ async fn execute_download(
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
+
+    // Hide console window on Windows
+    #[cfg(windows)]
+    cmd.creation_flags(CREATE_NO_WINDOW);
 
     let mut child = cmd.spawn().map_err(|e| DownloadError::Failed {
         code: ErrorCode::ToolMissing,

@@ -7,6 +7,13 @@ use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::time::Duration;
 
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
+
+/// Windows flag to prevent console window from appearing when spawning processes.
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
 use anyhow::{anyhow, Context, Result};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -286,18 +293,20 @@ impl ToolManager {
 
     /// Get the version string from a tool.
     pub async fn get_version(&self, path: &Path, tool: Tool) -> Result<String> {
-        let output = tokio::time::timeout(
-            self.config.version_timeout,
-            Command::new(path)
-                .args(tool.version_args())
-                .stdin(Stdio::null())
-                .stdout(Stdio::piped())
-                .stderr(Stdio::piped())
-                .output(),
-        )
-        .await
-        .context("Version check timed out")?
-        .context("Failed to execute tool")?;
+        let mut cmd = Command::new(path);
+        cmd.args(tool.version_args())
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+
+        // Hide console window on Windows
+        #[cfg(windows)]
+        cmd.creation_flags(CREATE_NO_WINDOW);
+
+        let output = tokio::time::timeout(self.config.version_timeout, cmd.output())
+            .await
+            .context("Version check timed out")?
+            .context("Failed to execute tool")?;
 
         if !output.status.success() {
             return Err(anyhow!(
