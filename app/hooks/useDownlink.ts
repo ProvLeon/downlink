@@ -528,10 +528,21 @@ export function useDownlink(): UseDownlinkReturn {
 
   const removeDownload = useCallback(
     async (id: string) => {
-      await invoke("remove_download", { id });
-      await refreshQueue();
+      // Optimistic removal — card disappears instantly
+      setQueue((prev) => prev.filter((item) => item.id !== id));
+      setHistory((prev) => prev.filter((item) => item.id !== id));
+      try {
+        await invoke("remove_download", { id });
+        // Sync both state slices with ground truth
+        await refreshQueue();
+        await refreshHistory();
+      } catch (e) {
+        // On failure, re-sync to restore correct state
+        await refreshQueue();
+        await refreshHistory();
+      }
     },
-    [refreshQueue]
+    [refreshQueue, refreshHistory]
   );
 
   const clearQueue = useCallback(async () => {

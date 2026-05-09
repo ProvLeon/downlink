@@ -575,6 +575,26 @@ impl Db {
         Ok(())
     }
 
+    /// Reset orphaned "active" downloads to Stopped.
+    ///
+    /// Called on startup: any download left in `downloading`, `fetching`, or
+    /// `postprocessing` state means the app was force-quit or crashed mid-download.
+    /// Transitioning to `stopped` lets the user resume them with `--continue`.
+    ///
+    /// Returns the number of rows reset.
+    pub fn reset_orphaned_downloads(&mut self) -> Result<usize> {
+        let count = self.conn.execute(
+            "UPDATE downloads
+             SET status = 'stopped', phase = 'Interrupted — tap ▶ to resume'
+             WHERE status IN ('downloading', 'fetching', 'postprocessing')",
+            [],
+        )?;
+        if count > 0 {
+            log::info!("Reset {} orphaned download(s) to Stopped on startup", count);
+        }
+        Ok(count)
+    }
+
     /// Get downloads by parent ID (for playlist items).
     pub fn get_playlist_items(&mut self, parent_id: Uuid) -> Result<Vec<DownloadRow>> {
         let mut stmt = self.conn.prepare(

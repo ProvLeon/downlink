@@ -234,3 +234,84 @@ select:disabled {
 .animate-status-pulse {
     animation: status-pulse 1.8s ease-in-out infinite;
 }
+
+/* ─── Splash: logo entrance ──────────────────────────────── */
+@keyframes logo-entrance {
+    0%   { opacity: 0; transform: scale(0.6) translateY(16px); }
+    55%  { opacity: 1; transform: scale(1.08) translateY(-4px); }
+    75%  { transform: scale(0.97) translateY(2px); }
+    100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.animate-logo-entrance {
+    animation: logo-entrance 0.85s var(--ease-spring) forwards;
+}
+
+/* ─── Splash: tagline/text slide-up ─────────────────────── */
+@keyframes fade-in-up {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in-up {
+    animation: fade-in-up 0.5s var(--ease-smooth) both;
+}
+
+.animation-delay-150 { animation-delay: 150ms; }
+.animation-delay-300 { animation-delay: 300ms; }
+.animation-delay-500 { animation-delay: 500ms; }
+
+/* ─── Splash: slow ring spin ─────────────────────────────── */
+@keyframes spin-slow {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+}
+
+.animate-spin-slow {
+    animation: spin-slow 4s linear infinite;
+}
+
+/* ─── Empty state: arrow pull-down loop ──────────────────── */
+@keyframes arrow-pull-down {
+    0%   { transform: translateY(-6px); opacity: 0.3; }
+    40%  { transform: translateY(4px);  opacity: 1; }
+    70%  { transform: translateY(8px);  opacity: 0.8; }
+    100% { transform: translateY(16px); opacity: 0; }
+}
+
+.animate-arrow-pull-down {
+    animation: arrow-pull-down 1.6s var(--ease-smooth) infinite;
+}
+
+/* ─── Empty state: icon float ────────────────────────────── */
+@keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50%       { transform: translateY(-6px); }
+}
+
+.animate-float {
+    animation: float 3s ease-in-out infinite;
+}
+
+/* ─── Clipboard banner slide-in ─────────────────────────── */
+@keyframes slide-down {
+    from { opacity: 0; transform: translateY(-10px) scale(0.97); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.animate-slide-down {
+    animation: slide-down 0.2s var(--ease-spring) both;
+}
+
+/* ─── Drag-and-drop: dragging item ──────────────────────── */
+.dnd-dragging {
+    opacity: 0.5;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4), 0 0 0 1px rgba(59,130,246,0.4);
+    cursor: grabbing !important;
+}
+
+.dnd-drag-overlay {
+    box-shadow: 0 12px 40px rgba(0,0,0,0.5), 0 0 0 1px rgba(59,130,246,0.5);
+    scale: 1.02;
+    cursor: grabbing !important;
+}

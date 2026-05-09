@@ -69,6 +69,9 @@ export interface AddUrlsOptions {
   uploader?: string | null;
   thumbnail_url?: string | null;
   duration_seconds?: number | null;
+  // Feature toggles
+  subtitles_enabled?: boolean;
+  sponsorblock_enabled?: boolean;
 }
 
 // Add URLs result

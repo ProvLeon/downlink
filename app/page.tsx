@@ -11,6 +11,7 @@ import { ActionBar } from "./components/ActionBar";
 import { DownloadQueue } from "./components/DownloadQueue";
 import { Footer } from "./components/Footer";
 import { ResizableDivider } from "./components/ResizableDivider";
+import { ClipboardBanner } from "./components/ClipboardBanner";
 import { toast } from "./components/Toast";
 import { PRESETS, DEFAULT_PRESET_ID } from "./constants";
 import type { UserSettings, FetchMetadataResult, UrlPreviewItem, VideoQualityOption } from "./types";
@@ -53,6 +54,10 @@ export default function Home() {
     if (typeof window === "undefined") return 300;
     return parseInt(localStorage.getItem("downlink:queue-width") ?? "300", 10);
   });
+
+  // Clipboard URL banner — detected on window focus, dismissed per URL
+  const [clipboardUrl, setClipboardUrl] = useState<string | null>(null);
+  const dismissedClipboardUrls = useRef<Set<string>>(new Set());
 
   const handleQueueWidthChange = useCallback((w: number) => {
     setQueueWidth(w);
@@ -201,6 +206,38 @@ export default function Home() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
+
+  // Detect URL in clipboard when window regains focus (tab visible).
+  // Only surfaces the banner if the URL is new and not already in the input.
+  useEffect(() => {
+    if (!downlink.isTauri) return;
+    const handleFocus = async () => {
+      try {
+        const text = await navigator.clipboard.readText();
+        if (!text) return;
+        const urls = text.match(/https?:\/\/[^\s]+/);
+        if (!urls) return;
+        const detected = urls[0];
+        // Skip: already typed, same as current input, or previously dismissed
+        if (
+          urlInput.includes(detected) ||
+          dismissedClipboardUrls.current.has(detected)
+        ) return;
+        setClipboardUrl(detected);
+      } catch { /* permission denied — silent */ }
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") handleFocus();
+    };
+
+    document.addEventListener("visibilitychange", handleVisibility);
+    window.addEventListener("focus", handleFocus);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibility);
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, [downlink.isTauri, urlInput]);
 
   // Drag and drop handlers
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -367,7 +404,7 @@ export default function Home() {
             new Promise<never>((_, reject) =>
               setTimeout(
                 () => reject(new Error("Preview timed out — the site may be slow or unsupported.")),
-                25_000
+                12_000
               )
             ),
           ]);
@@ -485,6 +522,8 @@ export default function Home() {
           uploader: previewData?.uploader ?? null,
           thumbnail_url: previewData?.thumbnail_url ?? null,
           duration_seconds: previewData?.duration_seconds ?? null,
+          subtitles_enabled: subtitlesEnabled,
+          sponsorblock_enabled: sponsorBlockEnabled,
         });
 
         if (settings?.general.auto_start !== false && result.ids.length > 0) {
@@ -517,6 +556,8 @@ export default function Home() {
             uploader: null,
             thumbnail_url: null,
             duration_seconds: null,
+            subtitles_enabled: subtitlesEnabled,
+            sponsorblock_enabled: sponsorBlockEnabled,
           });
           if (result.ids.length > 0) hasAnyIds = true;
         }
@@ -700,6 +741,25 @@ export default function Home() {
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
+      {/* Clipboard URL banner */}
+      {clipboardUrl && (
+        <div className="px-3 pt-2">
+          <ClipboardBanner
+            url={clipboardUrl}
+            onAccept={() => {
+              setUrlInput(clipboardUrl);
+              setClipboardUrl(null);
+              dismissedClipboardUrls.current.add(clipboardUrl);
+              inputRef.current?.focus();
+            }}
+            onDismiss={() => {
+              dismissedClipboardUrls.current.add(clipboardUrl);
+              setClipboardUrl(null);
+            }}
+          />
+        </div>
+      )}
+
       {/* Header bar */}
       <HeaderBar
         urlInput={urlInput}
