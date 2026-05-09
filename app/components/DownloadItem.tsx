@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import Image from "next/image";
 import {
   Pause,
@@ -62,12 +62,15 @@ function StatusPill({
       return (
         <span className={`${base} bg-zinc-700/60 text-zinc-400`}>{label}</span>
       );
-    case "stopped":
+    case "stopped": {
+      const isInterrupted = phase?.toLowerCase().includes("interrupted");
       return (
-        <span className={`${base} bg-yellow-500/15 text-yellow-400`}>
-          {label}
+        <span className={`${base} ${isInterrupted ? "bg-orange-500/15 text-orange-400" : "bg-yellow-500/15 text-yellow-400"}`}>
+          {isInterrupted ? <Play className="h-2.5 w-2.5" /> : null}
+          {isInterrupted ? "Interrupted — Resume" : label}
         </span>
       );
+    }
     case "done":
       return (
         <span className={`${base} bg-green-500/15 text-green-400`}>
@@ -118,6 +121,7 @@ export function DownloadItem({
   onOpenFolder,
 }: DownloadItemProps) {
   const [errorExpanded, setErrorExpanded] = useState(false);
+  const [isPortrait, setIsPortrait] = useState(false);
 
   const isActive =
     item.status === "downloading" ||
@@ -129,8 +133,29 @@ export function DownloadItem({
   const isQueued  = item.status === "queued" || item.status === "ready";
   const progress  = item.progress_percent ?? 0;
 
+  // Keyboard primary action: resume/retry for stopped/failed, open file for done, else no-op
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.target !== e.currentTarget) return; // only handle on the card itself
+    if (e.key === " " || e.key === "Enter") {
+      e.preventDefault();
+      if (isActive) onStop(item.id);
+      else if (isStopped || isQueued || isFailed) onRetry(item.id);
+      else if (isDone && item.final_path) onOpen(item.final_path);
+    } else if (e.key === "Delete" || e.key === "Backspace") {
+      e.preventDefault();
+      if (isActive || isQueued) onCancel(item.id);
+      else onRemove(item.id);
+    }
+  }, [isActive, isDone, isFailed, isStopped, isQueued, item, onStop, onRetry, onOpen, onCancel, onRemove]);
+
   return (
-    <div className="rounded-xl bg-zinc-800/50 p-2.5 ring-1 ring-white/5 transition-colors hover:bg-zinc-800/80 animate-fade-in">
+    <div
+      role="listitem"
+      tabIndex={0}
+      onKeyDown={handleKeyDown}
+      aria-label={`${item.title || item.source_url} — ${item.status}`}
+      className="rounded-xl bg-zinc-800/50 p-2.5 ring-1 ring-white/5 transition-colors hover:bg-zinc-800/80 animate-fade-in focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900"
+    >
       <div className="flex items-start gap-2.5">
 
         {/* ── Thumbnail ──────────────────────────────────── */}
@@ -140,8 +165,14 @@ export function DownloadItem({
               src={item.thumbnail_url}
               alt={item.title || "Video"}
               fill
-              className="object-cover"
+              className={isPortrait ? "object-contain" : "object-cover"}
               unoptimized
+              onLoad={(e) => {
+                const img = e.currentTarget as HTMLImageElement;
+                if (img.naturalWidth > 0 && img.naturalHeight > img.naturalWidth) {
+                  setIsPortrait(true);
+                }
+              }}
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center">
