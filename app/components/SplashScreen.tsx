@@ -9,163 +9,115 @@ interface SplashScreenProps {
 }
 
 export function SplashScreen({ onComplete, minimumDuration = 2000 }: SplashScreenProps) {
-  const [isAnimating, setIsAnimating] = useState(true);
   const [isFadingOut, setIsFadingOut] = useState(false);
+  const [gone, setGone] = useState(false);
 
   useEffect(() => {
-    // Start fade out after minimum duration
-    const fadeTimer = setTimeout(() => {
-      setIsFadingOut(true);
-    }, minimumDuration - 500);
-
-    // Complete after fade animation
-    const completeTimer = setTimeout(() => {
-      setIsAnimating(false);
-      onComplete();
-    }, minimumDuration);
-
-    return () => {
-      clearTimeout(fadeTimer);
-      clearTimeout(completeTimer);
-    };
+    const fadeTimer = setTimeout(() => setIsFadingOut(true), minimumDuration - 400);
+    const doneTimer = setTimeout(() => { setGone(true); onComplete(); }, minimumDuration);
+    return () => { clearTimeout(fadeTimer); clearTimeout(doneTimer); };
   }, [minimumDuration, onComplete]);
 
-  if (!isAnimating) return null;
+  if (gone) return null;
 
   return (
     <div
-      className={`fixed inset-0 z-50 flex flex-col items-center justify-center bg-zinc-950 transition-opacity duration-500 ${isFadingOut ? "opacity-0" : "opacity-100"
-        }`}
+      className={`fixed inset-0 z-50 flex flex-col items-center justify-center bg-zinc-950 transition-opacity duration-400 ${
+        isFadingOut ? "opacity-0" : "opacity-100"
+      }`}
     >
-      {/* Animated Logo Container */}
-      <div className="relative">
-        {/* Glow effect behind logo */}
-        <div className="absolute inset-0 blur-3xl opacity-30">
-          <div className="h-32 w-32 rounded-full bg-gradient-to-br from-blue-500 via-cyan-500 to-green-500 animate-pulse" />
+      {/* ── Logo cluster ──────────────────────────────────── */}
+      <div className="relative flex items-center justify-center">
+
+        {/* Ambient glow blob */}
+        <div className="absolute h-48 w-48 rounded-full bg-gradient-to-br from-blue-600/30 via-cyan-500/20 to-transparent blur-3xl" />
+
+        {/* Slow-spinning gradient arc */}
+        <div className="absolute animate-spin-slow">
+          <svg className="h-44 w-44" viewBox="0 0 100 100" fill="none">
+            <defs>
+              <linearGradient id="ring-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#2563eb" stopOpacity="0.8" />
+                <stop offset="50%" stopColor="#06b6d4" stopOpacity="0.6" />
+                <stop offset="100%" stopColor="#10b981" stopOpacity="0" />
+              </linearGradient>
+            </defs>
+            <circle
+              cx="50" cy="50" r="46"
+              stroke="url(#ring-grad)"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeDasharray="90 200"
+              opacity="0.6"
+            />
+          </svg>
         </div>
 
-        {/* Logo with animation */}
+        {/* Logo: scale overshoot entrance */}
         <div className="relative animate-logo-entrance">
           <Image
             src="/downlink-square.png"
             alt="Downlink"
-            width={120}
-            height={120}
+            width={112}
+            height={112}
             className="drop-shadow-2xl"
             priority
           />
         </div>
 
-        {/* Animated trails */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
-          <svg
-            className="h-40 w-40 animate-spin-slow"
-            viewBox="0 0 100 100"
-            fill="none"
-          >
-            <circle
-              cx="50"
-              cy="50"
-              r="45"
-              stroke="url(#gradient)"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeDasharray="70 200"
-              className="opacity-40"
-            />
-            <defs>
-              <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#2563eb" />
-                <stop offset="50%" stopColor="#06b6d4" />
-                <stop offset="100%" stopColor="#10b981" />
-              </linearGradient>
-            </defs>
-          </svg>
+        {/* Animated download arrow — "pull-down" loop beneath logo */}
+        <div className="absolute -bottom-8 flex flex-col items-center gap-0.5">
+          {[0, 1, 2].map((i) => (
+            <div
+              key={i}
+              className="animate-arrow-pull-down"
+              style={{ animationDelay: `${i * 220}ms` }}
+            >
+              <svg width="12" height="8" viewBox="0 0 12 8" fill="none">
+                <path
+                  d="M1 1L6 6L11 1"
+                  stroke="url(#chevron-grad)"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <defs>
+                  <linearGradient id="chevron-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="#3b82f6" />
+                    <stop offset="100%" stopColor="#06b6d4" />
+                  </linearGradient>
+                </defs>
+              </svg>
+            </div>
+          ))}
         </div>
       </div>
 
-      {/* App name */}
-      <h1 className="mt-8 text-3xl font-bold text-white animate-fade-in-up">
+      {/* ── App name ──────────────────────────────────────── */}
+      <h1 className="mt-16 text-2xl font-bold tracking-tight text-white animate-fade-in-up animation-delay-300">
         Downlink
       </h1>
 
-      {/* Tagline */}
-      <p className="mt-2 text-sm text-zinc-400 animate-fade-in-up animation-delay-200">
-        Fast & Beautiful Video Downloader
+      {/* ── Tagline ───────────────────────────────────────── */}
+      <p className="mt-1.5 text-sm text-zinc-500 animate-fade-in-up animation-delay-500">
+        Fast &amp; Beautiful Video Downloader
       </p>
 
-      {/* Loading indicator */}
-      <div className="mt-8 flex items-center gap-2 animate-fade-in-up animation-delay-400">
-        <div className="flex gap-1">
-          <span className="h-2 w-2 rounded-full bg-blue-500 animate-bounce" style={{ animationDelay: "0ms" }} />
-          <span className="h-2 w-2 rounded-full bg-cyan-500 animate-bounce" style={{ animationDelay: "150ms" }} />
-          <span className="h-2 w-2 rounded-full bg-green-500 animate-bounce" style={{ animationDelay: "300ms" }} />
-        </div>
+      {/* ── Loading dots ──────────────────────────────────── */}
+      <div className="mt-8 flex items-center gap-1.5 animate-fade-in-up animation-delay-500">
+        {[0, 150, 300].map((delay) => (
+          <span
+            key={delay}
+            className="h-1.5 w-1.5 rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 animate-bounce"
+            style={{ animationDelay: `${delay}ms` }}
+          />
+        ))}
       </div>
 
-      {/* Version */}
-      <p className="absolute bottom-8 text-xs text-zinc-600">
-        Loading...
+      {/* ── Version slot ──────────────────────────────────── */}
+      <p className="absolute bottom-6 text-[11px] text-zinc-700 animate-fade-in-up animation-delay-500">
+        Starting up…
       </p>
-
-      <style jsx>{`
-        @keyframes logo-entrance {
-          0% {
-            opacity: 0;
-            transform: scale(0.5) translateY(20px);
-          }
-          50% {
-            opacity: 1;
-            transform: scale(1.1) translateY(-5px);
-          }
-          100% {
-            opacity: 1;
-            transform: scale(1) translateY(0);
-          }
-        }
-
-        @keyframes fade-in-up {
-          0% {
-            opacity: 0;
-            transform: translateY(10px);
-          }
-          100% {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-
-        @keyframes spin-slow {
-          from {
-            transform: rotate(0deg);
-          }
-          to {
-            transform: rotate(360deg);
-          }
-        }
-
-        :global(.animate-logo-entrance) {
-          animation: logo-entrance 0.8s ease-out forwards;
-        }
-
-        :global(.animate-fade-in-up) {
-          animation: fade-in-up 0.6s ease-out forwards;
-        }
-
-        :global(.animation-delay-200) {
-          animation-delay: 200ms;
-          opacity: 0;
-        }
-
-        :global(.animation-delay-400) {
-          animation-delay: 400ms;
-          opacity: 0;
-        }
-
-        :global(.animate-spin-slow) {
-          animation: spin-slow 3s linear infinite;
-        }
-      `}</style>
     </div>
   );
 }

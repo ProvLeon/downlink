@@ -76,11 +76,38 @@ async fn get_or_init_download_manager(
         *tx_guard = Some(event_tx.clone());
     }
 
-    // Set up event forwarding to frontend
+    // Set up event forwarding to frontend + Dock/window-title progress updates
     let app_handle = app.clone();
     tokio::spawn(async move {
         log::info!("Event forwarding task started");
+
+        // Per-download state for aggregate progress calculation
+        let mut speed_map: HashMap<Uuid, u64>  = HashMap::new(); // id → bytes/s
+        let mut pct_map:   HashMap<Uuid, f64>  = HashMap::new(); // id → percent 0..100
+
         while let Some(event) = event_rx.recv().await {
+            // ── Side-effect: update window title + dock progress ──────────────
+            match &event {
+                DownlinkEvent::DownloadProgress { id, progress, .. } => {
+                    if let Some(spd) = progress.speed_bps {
+                        speed_map.insert(*id, spd);
+                    }
+                    if let Some(pct) = progress.percent {
+                        pct_map.insert(*id, pct);
+                    }
+                    update_dock_and_title(&app_handle, &speed_map, &pct_map);
+                }
+                DownlinkEvent::DownloadCompleted { id, .. }
+                | DownlinkEvent::DownloadFailed   { id, .. }
+                | DownlinkEvent::DownloadCanceled { id }
+                | DownlinkEvent::DownloadStopped  { id } => {
+                    speed_map.remove(id);
+                    pct_map.remove(id);
+                    update_dock_and_title(&app_handle, &speed_map, &pct_map);
+                }
+                _ => {}
+            }
+
             log::info!("Forwarding event to frontend: {:?}", event);
             match events::emit_event(&app_handle, event) {
                 Ok(_) => log::debug!("Event emitted successfully"),
@@ -89,6 +116,15 @@ async fn get_or_init_download_manager(
         }
         log::warn!("Event forwarding task ended");
     });
+
+    // ── Startup recovery: reset orphaned downloads ────────────────────────────
+    // Any download left in downloading/fetching/postprocessing state when the app
+    // last closed (crash or force-quit) will never resume on its own.
+    // Reset them to Stopped so the user sees a clear resumable state.
+    {
+        let mut db = state.db.lock().await;
+        let _ = db.reset_orphaned_downloads();
+    }
 
     // Create download manager
     let settings = {
@@ -126,6 +162,64 @@ async fn get_or_init_download_manager(
 }
 
 // ============================================================================
+// Dock / Window-Title Progress Helper
+// ============================================================================
+
+/// Update the macOS Dock progress bar and window title to reflect aggregate download speed.
+/// Called from the event-forwarding task on every `DownloadProgress` event.
+fn update_dock_and_title(
+    app: &AppHandle,
+    speed_map: &HashMap<Uuid, u64>,
+    pct_map: &HashMap<Uuid, f64>,
+) {
+    use tauri::Manager;
+
+    let total_speed: u64 = speed_map.values().sum();
+    let active_count = pct_map.len();
+
+    // Update window title
+    if let Some(window) = app.get_webview_window("main") {
+        let title = if active_count > 0 {
+            format!("↓ {} — Downlink", format_speed_str(total_speed))
+        } else {
+            "Downlink".to_string()
+        };
+        let _ = window.set_title(&title);
+
+        // macOS Dock progress bar (Tauri v2 API)
+        #[cfg(target_os = "macos")]
+        {
+            use tauri::window::ProgressBarState;
+            if active_count > 0 {
+                let avg_pct = pct_map.values().sum::<f64>() / active_count as f64;
+                let _ = window.set_progress_bar(ProgressBarState {
+                    progress: Some(avg_pct as u64),
+                    status: Some(tauri::window::ProgressBarStatus::Normal),
+                });
+            } else {
+                let _ = window.set_progress_bar(ProgressBarState {
+                    progress: Some(0),
+                    status: Some(tauri::window::ProgressBarStatus::None),
+                });
+            }
+        }
+    }
+}
+
+/// Format bytes/sec into a compact human-readable string for the window title.
+fn format_speed_str(bps: u64) -> String {
+    const MB: u64 = 1_048_576;
+    const KB: u64 = 1_024;
+    if bps >= MB {
+        format!("{:.1} MB/s", bps as f64 / MB as f64)
+    } else if bps >= KB {
+        format!("{:.0} KB/s", bps as f64 / KB as f64)
+    } else {
+        format!("{} B/s", bps)
+    }
+}
+
+// ============================================================================
 // Tauri Command Payloads
 // ============================================================================
 
@@ -156,6 +250,11 @@ pub struct AddUrlsOptions {
     thumbnail_url: Option<String>,
     #[serde(default, deserialize_with = "deserialize_null_as_none")]
     duration_seconds: Option<i64>,
+    /// Feature toggles forwarded from the UI action bar.
+    #[serde(default)]
+    subtitles_enabled: bool,
+    #[serde(default)]
+    sponsorblock_enabled: bool,
 }
 
 /// Options for fetching metadata.
@@ -270,12 +369,21 @@ fn add_urls(
 
     let mut ids = Vec::with_capacity(urls.len());
     for u in &urls {
+        // Encode feature toggles into preset_id as suffixes (+subs, +sb).
+        // execute_download strips and decodes them to inject yt-dlp flags.
+        let effective_preset = {
+            let mut p = options.preset_id.clone();
+            if options.subtitles_enabled { p.push_str("+subs"); }
+            if options.sponsorblock_enabled { p.push_str("+sb"); }
+            p
+        };
+
         let id = db
             .insert_download(
                 u,
                 source_kind,
                 options.parent_id,
-                &options.preset_id,
+                &effective_preset,
                 &options.output_dir,
             )
             .map_err(|e| format!("Failed to insert download: {e}"))?;
@@ -1206,7 +1314,13 @@ pub fn run() {
             )?;
 
             // Initialize per-user dirs + SQLite
-            let db = db::Db::open().map_err(|e| tauri::Error::Anyhow(e))?;
+            let mut db = db::Db::open().map_err(|e| tauri::Error::Anyhow(e))?;
+
+            // ── Startup recovery ──────────────────────────────────────────────
+            // Reset any downloads stuck in downloading/fetching/postprocessing
+            // from the previous session (crash or force-quit). This runs before
+            // the UI loads so the first get_queue() call returns clean state.
+            let _ = db.reset_orphaned_downloads();
 
             // Initialize tool manager with bundled_dir set to executable directory
             // In production, Tauri places sidecar binaries next to the executable
