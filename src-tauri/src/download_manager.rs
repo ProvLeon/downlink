@@ -338,6 +338,10 @@ fn extract_hostname(url: &str) -> String {
         .to_ascii_lowercase()
 }
 
+/// Maximum simultaneous downloads from a single domain.
+/// This prevents site-level rate limiting when batch-downloading from one source.
+pub const MAX_PER_DOMAIN: usize = 2;
+
 /// Download Manager handles scheduling and execution of downloads.
 /// Uses lazy initialization to avoid spawning tasks before runtime is ready.
 pub struct DownloadManager {
@@ -345,6 +349,8 @@ pub struct DownloadManager {
     db: Arc<Mutex<Db>>,
     event_tx: mpsc::Sender<DownlinkEvent>,
     active_downloads: Arc<RwLock<HashMap<Uuid, broadcast::Sender<()>>>>,
+    /// Maps download id → source hostname, used for per-domain concurrency accounting.
+    active_domains: Arc<RwLock<HashMap<Uuid, String>>>,
     completion_tx: mpsc::Sender<()>,
     completion_rx: Mutex<Option<mpsc::Receiver<()>>>,
 }
@@ -363,6 +369,7 @@ impl DownloadManager {
             db,
             event_tx,
             active_downloads: Arc::new(RwLock::new(HashMap::new())),
+            active_domains: Arc::new(RwLock::new(HashMap::new())),
             completion_tx,
             completion_rx: Mutex::new(Some(completion_rx)),
         }
@@ -413,7 +420,7 @@ impl DownloadManager {
                 return Ok(());
             }
 
-            // Check concurrency limit
+            // Check global concurrency limit
             let max_concurrent = self.config.read().await.max_concurrent;
             if active.len() >= max_concurrent {
                 log::info!(
@@ -425,10 +432,38 @@ impl DownloadManager {
                 return Ok(());
             }
 
+            // ── Per-domain concurrency cap ─────────────────────────────────────
+            // Peek at the URL before inserting so we can count how many downloads
+            // are already running from the same hostname.
+            let source_url = {
+                let mut db = self.db.lock().await;
+                db.get_download(id)
+                    .ok()
+                    .flatten()
+                    .map(|row| row.source_url)
+                    .unwrap_or_default()
+            };
+            let hostname = extract_hostname(&source_url);
+            if !hostname.is_empty() {
+                let domains = self.active_domains.read().await;
+                let domain_count = domains.values().filter(|h| *h == &hostname).count();
+                if domain_count >= MAX_PER_DOMAIN {
+                    log::info!(
+                        "Per-domain limit reached for '{}' ({}/{}), download {} will wait",
+                        hostname, domain_count, MAX_PER_DOMAIN, id
+                    );
+                    return Ok(());
+                }
+            }
+
             // Register as active IMMEDIATELY to prevent race conditions
             // Create cancel channel and insert while holding the lock
             let (cancel_tx, _) = broadcast::channel::<()>(1);
             active.insert(id, cancel_tx);
+            // Also track domain
+            if !hostname.is_empty() {
+                self.active_domains.write().await.insert(id, hostname);
+            }
             log::info!(
                 "Download {} registered as active ({}/{})",
                 id,
@@ -477,7 +512,11 @@ impl DownloadManager {
         let db = self.db.clone();
         let event_tx = self.event_tx.clone();
         let active_downloads = self.active_downloads.clone();
+        let active_domains = self.active_domains.clone();
         let completion_tx = self.completion_tx.clone();
+
+        // Whether the download was Stopped — enables --continue to resume partial files
+        let was_stopped = matches!(download_info.status, DownloadStatus::Stopped);
 
         tokio::spawn(async move {
             // ── Phase 1: metadata fetch (if title is missing) ──────────────────
@@ -554,25 +593,8 @@ impl DownloadManager {
                 }
             }
 
-            // ── Phase 2: Check cancel, then start actual download ──────────────
 
-            // The download may have been canceled/stopped during the metadata fetch.
-            // If it was removed from active_downloads, abort gracefully.
-            let cancel_tx = {
-                let active = active_downloads.read().await;
-                active.get(&id).cloned()
-            };
-
-            let cancel_tx = match cancel_tx {
-                Some(tx) => tx,
-                None => {
-                    log::info!("Download {} was removed during metadata fetch, aborting", id);
-                    // Still fire completion so the next queued item can start
-                    let _ = completion_tx.send(()).await;
-                    return;
-                }
-            };
-
+            // ── Phase 2: Emit Started, then enter retry loop ──────────────────
             // Update status to Downloading
             {
                 let mut db_guard = db.lock().await;
@@ -587,19 +609,82 @@ impl DownloadManager {
             let preset_id = download_info.preset_id.clone();
             let output_dir = download_info.output_dir.clone();
 
-            let result = execute_download(
-                id,
-                &source_url,
-                &preset_id,
-                &output_dir,
-                config,
-                cancel_tx.subscribe(),
-                event_tx.clone(),
-            )
-            .await;
+            // ── Auto-retry with exponential backoff ───────────────────────────
+            // Transient network/unknown failures get up to MAX_RETRIES attempts.
+            // User-facing errors (login, geo, format) are never retried automatically.
+            const MAX_RETRIES: u32 = 3;
+            const BASE_DELAY_SECS: u64 = 5;
 
-            // Remove from active downloads
+            let mut attempt = 0u32;
+            let result = loop {
+                let cancel_rx = {
+                    let active = active_downloads.read().await;
+                    active.get(&id).map(|tx| tx.subscribe())
+                };
+                let cancel_rx = match cancel_rx {
+                    Some(rx) => rx,
+                    None => {
+                        log::info!("Download {} was removed before retry attempt {}", id, attempt + 1);
+                        break Err(DownloadError::Stopped);
+                    }
+                };
+
+                let res = execute_download(
+                    id,
+                    &source_url,
+                    &preset_id,
+                    &output_dir,
+                    config.clone(),
+                    cancel_rx,
+                    event_tx.clone(),
+                    was_stopped && attempt == 0, // resume only on first attempt of a stopped download
+                )
+                .await;
+
+                match &res {
+                    // Success — break out
+                    Ok(_) => break res,
+                    // User-initiated stop/cancel — never retry
+                    Err(DownloadError::Canceled) | Err(DownloadError::Stopped) => break res,
+                    // Transient failures — retry if budget remains
+                    Err(DownloadError::Failed { code, .. })
+                        if matches!(code, ErrorCode::Network | ErrorCode::Unknown)
+                            && attempt < MAX_RETRIES - 1 =>
+                    {
+                        attempt += 1;
+                        let delay = BASE_DELAY_SECS * (1 << attempt); // 5s, 10s, 20s
+                        log::warn!(
+                            "Download {} failed (attempt {}/{}), retrying in {}s…",
+                            id, attempt, MAX_RETRIES, delay
+                        );
+                        // Surface a retrying event so the UI shows feedback
+                        let _ = event_tx
+                            .send(DownlinkEvent::DownloadProgress {
+                                id,
+                                status: events::DownloadStatus::Downloading,
+                                progress: Progress {
+                                    percent: None,
+                                    bytes_downloaded: None,
+                                    bytes_total: None,
+                                    speed_bps: None,
+                                    eta_seconds: Some(delay),
+                                    phase: Some(Phase {
+                                        name: format!("Retrying in {}s… (attempt {}/{})", delay, attempt, MAX_RETRIES),
+                                        detail: None,
+                                    }),
+                                },
+                            })
+                            .await;
+                        tokio::time::sleep(Duration::from_secs(delay)).await;
+                    }
+                    // Non-transient failure or retries exhausted — break
+                    Err(_) => break res,
+                }
+            };
+
+            // Remove from active downloads AND domain map
             active_downloads.write().await.remove(&id);
+            active_domains.write().await.remove(&id);
 
             // Update DB based on result
             let mut db_guard = db.lock().await;
@@ -781,7 +866,17 @@ async fn execute_download(
     config: Arc<RwLock<DownloadConfig>>,
     mut cancel_rx: broadcast::Receiver<()>,
     event_tx: mpsc::Sender<DownlinkEvent>,
+    // When true, injects `--continue` + `--no-part` so yt-dlp resumes a partial file.
+    resumable: bool,
 ) -> Result<Option<String>, DownloadError> {
+    // ── Decode feature-flag suffixes from preset_id ───────────────────────────
+    // Format: "<base_preset>[+subs][+sb]"  e.g. "best_video+subs+sb"
+    // Use replace() to strip suffixes — safe on any byte boundary.
+    let wants_subtitles    = preset_id.contains("+subs");
+    let wants_sponsorblock = preset_id.contains("+sb");
+    let clean_preset = preset_id.replace("+subs", "").replace("+sb", "");
+    let preset_id = clean_preset.as_str();
+
     // Support "custom:<format_string>" as a preset_id for user-selected qualities.
     // This avoids any DB schema change — the format string is encoded in the ID.
     let preset = if let Some(fmt) = preset_id.strip_prefix("custom:") {
@@ -815,6 +910,35 @@ async fn execute_download(
 
     // Add preset args
     args.extend(preset.yt_dlp_args.clone());
+
+    // Inject subtitle args (--write-auto-subs embeds auto-generated captions)
+    if wants_subtitles {
+        args.extend([
+            "--write-auto-subs".to_string(),
+            "--embed-subs".to_string(),
+            "--sub-langs".to_string(),
+            "en,en-US,en-GB".to_string(), // sensible default; user can override later
+            "--convert-subs".to_string(),
+            "srt".to_string(),
+        ]);
+        log::info!("Download {} — subtitles enabled", id);
+    }
+
+    // Inject SponsorBlock args (removes sponsorship segments in post-processing)
+    if wants_sponsorblock {
+        args.extend([
+            "--sponsorblock-remove".to_string(),
+            "sponsor,selfpromo,interaction,intro,outro".to_string(),
+        ]);
+        log::info!("Download {} — SponsorBlock removal enabled", id);
+    }
+
+    // Resume partial file if this download was previously Stopped
+    if resumable {
+        args.push("--continue".to_string());
+        args.push("--no-part".to_string()); // write directly to final file so --continue works
+        log::info!("Download {} is resumable — injecting --continue --no-part", id);
+    }
 
     // Add ffmpeg location if configured
     if let Some(ref ffmpeg_path) = config_guard.ffmpeg_path {
