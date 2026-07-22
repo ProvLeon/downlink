@@ -26,7 +26,15 @@ import type {
 export interface UpdateAvailableState {
   available: boolean;
   latestVersion: string | null;
+  releaseNotes: string | null;
   dismissed: boolean;
+  downloading: boolean;
+  downloadProgress: {
+    downloaded: number;
+    total: number | null;
+  } | null;
+  readyToInstall: boolean;
+  error: string | null;
 }
 
 // Event name used by the backend
@@ -96,6 +104,10 @@ export interface UseDownlinkReturn {
   openFile: (path: string) => Promise<void>;
   openFolder: (path: string) => Promise<void>;
 
+  // AI Transcription
+  checkWhisper: () => Promise<string>;
+  transcribeFile: (filePath: string, model?: "tiny" | "base" | "small" | "medium") => Promise<{ srt_path: string; method: string }>;
+
   // Error state
   lastError: string | null;
   clearError: () => void;
@@ -114,11 +126,46 @@ export function useDownlink(): UseDownlinkReturn {
   const [updateAvailable, setUpdateAvailable] = useState<UpdateAvailableState>({
     available: false,
     latestVersion: null,
+    releaseNotes: null,
     dismissed: false,
+    downloading: false,
+    downloadProgress: null,
+    readyToInstall: false,
+    error: null,
   });
 
   // Refs for cleanup
   const unlistenRef = useRef<UnlistenFn | null>(null);
+
+  // Trigger notifications for newly completed downloads
+  const notifiedIdsRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    queue.forEach(item => {
+      if (item.status === "done" && !notifiedIdsRef.current.has(item.id)) {
+        notifiedIdsRef.current.add(item.id);
+        
+        // Check if we are running in tauri
+        if (typeof window !== "undefined" && "__TAURI_INTERNALS__" in window) {
+          import('@tauri-apps/plugin-notification').then(async ({ isPermissionGranted, requestPermission, sendNotification }) => {
+            let granted = await isPermissionGranted();
+            if (!granted) {
+              const permission = await requestPermission();
+              granted = permission === 'granted';
+            }
+            if (granted) {
+              sendNotification({
+                title: "Download Complete",
+                body: `${item.title || 'Video'} has finished downloading.`,
+              });
+            }
+          }).catch(err => {
+            console.error("[Downlink] Failed to send notification:", err);
+          });
+        }
+      }
+    });
+  }, [queue]);
 
   // Check if we're running in Tauri
   useEffect(() => {
@@ -309,6 +356,14 @@ export function useDownlink(): UseDownlinkReturn {
         );
         break;
       }
+
+      case "FetchProgress": {
+        const data = event.data as { url: string; hint: string };
+        // Dispatch a custom DOM event so page.tsx can update the preview skeleton hint
+        // without needing to thread a callback through the hook's return type.
+        window.dispatchEvent(new CustomEvent("downlink:fetchProgress", { detail: data }));
+        break;
+      }
     }
   }, []);
 
@@ -410,11 +465,15 @@ export function useDownlink(): UseDownlinkReturn {
         try {
           const updateInfo = await invoke<AppUpdateInfo>("check_app_update");
           if (updateInfo.available) {
-            setUpdateAvailable({
+            console.log("App update available:", updateInfo.latest_version);
+            
+            setUpdateAvailable(prev => ({
+              ...prev,
               available: true,
               latestVersion: updateInfo.latest_version,
+              releaseNotes: updateInfo.release_notes ?? null,
               dismissed: false,
-            });
+            }));
           }
         } catch (e) {
           // Silently fail update check - not critical
@@ -597,25 +656,68 @@ export function useDownlink(): UseDownlinkReturn {
   }, []);
 
   const installAppUpdate = useCallback(async (): Promise<void> => {
-    // Use the official Tauri updater plugin for proper update installation
-    const update = await check();
-    if (update) {
-      console.log(`Installing update ${update.version}...`);
-      await update.downloadAndInstall((event) => {
-        switch (event.event) {
-          case "Started":
-            console.log(`Started downloading update, size: ${event.data.contentLength}`);
-            break;
-          case "Progress":
-            console.log(`Downloaded chunk: ${event.data.chunkLength} bytes`);
-            break;
-          case "Finished":
-            console.log("Download finished");
-            break;
-        }
-      });
+    if (updateAvailable.downloading) return; // Prevent concurrent downloads
+
+    setUpdateAvailable(prev => ({
+      ...prev,
+      downloading: true,
+      error: null,
+      downloadProgress: { downloaded: 0, total: null },
+    }));
+
+    try {
+      // Use the official Tauri updater plugin for proper update installation
+      const update = await check();
+      if (update) {
+        console.log(`Installing update ${update.version}...`);
+        
+        let downloadedBytes = 0;
+
+        await update.downloadAndInstall((event) => {
+          switch (event.event) {
+            case "Started":
+              console.log(`Started downloading update, size: ${event.data.contentLength}`);
+              setUpdateAvailable(prev => ({
+                ...prev,
+                downloadProgress: {
+                  downloaded: 0,
+                  total: event.data.contentLength ?? null,
+                }
+              }));
+              break;
+            case "Progress":
+              downloadedBytes += event.data.chunkLength;
+              setUpdateAvailable(prev => ({
+                ...prev,
+                downloadProgress: {
+                  downloaded: downloadedBytes,
+                  total: prev.downloadProgress?.total ?? null,
+                }
+              }));
+              break;
+            case "Finished":
+              console.log("Download finished");
+              setUpdateAvailable(prev => ({
+                ...prev,
+                downloading: false,
+                readyToInstall: true,
+                downloadProgress: null,
+              }));
+              break;
+          }
+        });
+      } else {
+        setUpdateAvailable(prev => ({ ...prev, downloading: false, error: "No update found during install check" }));
+      }
+    } catch (e) {
+      console.error("Failed to install update:", e);
+      setUpdateAvailable(prev => ({
+        ...prev,
+        downloading: false,
+        error: e instanceof Error ? e.message : String(e),
+      }));
     }
-  }, []);
+  }, [updateAvailable.downloading]);
 
   const restartApp = useCallback(async (): Promise<void> => {
     // Use the official Tauri process plugin for proper restart after update
@@ -643,6 +745,23 @@ export function useDownlink(): UseDownlinkReturn {
   const openFolder = useCallback(async (path: string): Promise<void> => {
     await invoke("open_folder", { path });
   }, []);
+
+  const checkWhisper = useCallback(async (): Promise<string> => {
+    return invoke<string>("check_whisper");
+  }, []);
+
+  const transcribeFile = useCallback(
+    async (
+      filePath: string,
+      model?: "tiny" | "base" | "small" | "medium"
+    ): Promise<{ srt_path: string; method: string }> => {
+      return invoke<{ srt_path: string; method: string }>("transcribe_file", {
+        filePath,
+        model: model ?? null,
+      });
+    },
+    []
+  );
 
   const clearError = useCallback(() => {
     setLastError(null);
@@ -709,6 +828,10 @@ export function useDownlink(): UseDownlinkReturn {
     getDefaultDownloadDir,
     openFile,
     openFolder,
+
+    // AI Transcription
+    checkWhisper,
+    transcribeFile,
 
     // Error state
     lastError,

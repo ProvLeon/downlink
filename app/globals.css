@@ -1,8 +1,11 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
-    --background: #ffffff;
-    --foreground: #171717;
+    color-scheme: dark;
+    --background: transparent;
+    --foreground: #ededed;
 
     /* Downlink brand colors - from logo (blue to cyan) */
     --brand-blue: #2563eb;
@@ -36,11 +39,9 @@
     --color-brand-teal: var(--brand-teal);
 }
 
-@media (prefers-color-scheme: dark) {
-    :root {
-        --background: #0a0a0a;
-        --foreground: #ededed;
-    }
+/* Fallback semi-transparent background for Windows/Linux (Allows Mica effect to show through, or provides an 85% opacity dark glass fallback over desktop) */
+html.non-mac {
+    --background: rgba(9, 9, 11, 0.90);
 }
 
 /* ─── Base ──────────────────────────────────────────────── */

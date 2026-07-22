@@ -22,14 +22,13 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { CloudDownload, Clock, Trash2, Zap, FolderOpen, GripVertical } from "lucide-react";
 import { DownloadItem } from "./DownloadItem";
+import type { WhisperModel } from "./DownloadItem";
 import type { QueueItem } from "../types";
 import { formatSpeed } from "../types";
 
 interface DownloadQueueProps {
   queue: QueueItem[];
   history: QueueItem[];
-  showHistory: boolean;
-  onShowHistoryChange: (value: boolean) => void;
   onStop: (id: string) => void;
   onCancel: (id: string) => void;
   onRemove: (id: string) => void;
@@ -38,6 +37,7 @@ interface DownloadQueueProps {
   onOpenFolder: (path: string) => void;
   onClearQueue: () => void;
   onClearHistory: () => void;
+  onTranscribe?: (filePath: string, model: WhisperModel) => Promise<{ srt_path: string; method: string }>;
 }
 
 // ── Sortable wrapper for a single queue item ──────────────────────
@@ -54,6 +54,7 @@ function SortableQueueItem({
   onRetry: (id: string) => void;
   onOpen: (path: string) => void;
   onOpenFolder: (path: string) => void;
+  onTranscribe?: (filePath: string, model: WhisperModel) => Promise<{ srt_path: string; method: string }>;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: item.id });
@@ -96,6 +97,7 @@ function SortableQueueItem({
           onRetry={props.onRetry}
           onOpen={props.onOpen}
           onOpenFolder={props.onOpenFolder}
+          onTranscribe={props.onTranscribe}
         />
       </div>
     </div>
@@ -106,8 +108,6 @@ function SortableQueueItem({
 export function DownloadQueue({
   queue,
   history,
-  showHistory,
-  onShowHistoryChange,
   onStop,
   onCancel,
   onRemove,
@@ -116,7 +116,9 @@ export function DownloadQueue({
   onOpenFolder,
   onClearQueue,
   onClearHistory,
+  onTranscribe,
 }: DownloadQueueProps) {
+  const [showHistory, setShowHistory] = useState(false);
   const [orderedQueue, setOrderedQueue] = useState<QueueItem[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
 
@@ -179,12 +181,12 @@ export function DownloadQueue({
   };
 
   return (
-    <div className="flex w-full flex-col border-l border-zinc-800/80 bg-zinc-950 h-full">
+    <div className="flex w-full flex-col border-l border-zinc-800/80 bg-transparent h-full">
       {/* ── Header / Tabs ──────────────────────────────── */}
       <div className="flex border-b border-zinc-800/80 px-1 pt-1">
         <button
           type="button"
-          onClick={() => onShowHistoryChange(false)}
+          onClick={() => setShowHistory(false)}
           className={`relative flex flex-1 items-center justify-center gap-1.5 rounded-t-lg px-2 py-2.5 text-xs font-medium transition-colors ${
             !showHistory ? "text-white" : "text-zinc-500 hover:text-zinc-300"
           }`}
@@ -207,7 +209,7 @@ export function DownloadQueue({
 
         <button
           type="button"
-          onClick={() => onShowHistoryChange(true)}
+          onClick={() => setShowHistory(true)}
           className={`relative flex flex-1 items-center justify-center gap-1.5 rounded-t-lg px-2 py-2.5 text-xs font-medium transition-colors ${
             showHistory ? "text-white" : "text-zinc-500 hover:text-zinc-300"
           }`}
@@ -302,6 +304,7 @@ export function DownloadQueue({
               onRetry={onRetry}
               onOpen={onOpen}
               onOpenFolder={onOpenFolder}
+              onTranscribe={onTranscribe}
             />
           ))
         ) : (
@@ -326,6 +329,7 @@ export function DownloadQueue({
                   onRetry={onRetry}
                   onOpen={onOpen}
                   onOpenFolder={onOpenFolder}
+                  onTranscribe={onTranscribe}
                 />
               ))}
             </SortableContext>
@@ -342,6 +346,7 @@ export function DownloadQueue({
                   onRetry={onRetry}
                   onOpen={onOpen}
                   onOpenFolder={onOpenFolder}
+                  onTranscribe={onTranscribe}
                 />
               ) : null}
             </DragOverlay>

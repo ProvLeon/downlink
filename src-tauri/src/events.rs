@@ -133,6 +133,13 @@ pub enum DownlinkEvent {
         info: MediaInfo,
     },
 
+    /// Real-time progress hint during multi-tier fetch.
+    /// The frontend can display this in the loading skeleton.
+    FetchProgress {
+        url: String,
+        hint: String,
+    },
+
     // Playlist expansion
     PlaylistExpanded {
         parent_id: Uuid,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useDeferredValue } from "react";
 import { useDownlink } from "./hooks/useDownlink";
 import { SettingsModal } from "./components/SettingsModal";
 import { PlaylistDialog } from "./components/PlaylistDialog";
@@ -11,7 +11,9 @@ import { ActionBar } from "./components/ActionBar";
 import { DownloadQueue } from "./components/DownloadQueue";
 import { Footer } from "./components/Footer";
 import { ResizableDivider } from "./components/ResizableDivider";
-import { ClipboardBanner } from "./components/ClipboardBanner";
+import { UpdateModal } from "./components/UpdateModal";
+import { TrimModal } from "./components/TrimModal";
+import { BlackHoleOverlay } from "./components/BlackHoleOverlay";
 import { toast } from "./components/Toast";
 import { PRESETS, DEFAULT_PRESET_ID } from "./constants";
 import type { UserSettings, FetchMetadataResult, UrlPreviewItem, VideoQualityOption } from "./types";
@@ -25,14 +27,14 @@ interface UrlPreview {
   data: FetchMetadataResult | null;
   error: string | null;
   presetId: string;
+  fetchHint?: string;
 }
 
 export default function Home() {
   const downlink = useDownlink();
 
-  // Splash screen state
-  const [showSplash, setShowSplash] = useState(true);
-  const [appReady, setAppReady] = useState(false);
+  // App ready state
+  const [appReady, setAppReady] = useState(true);
 
   // Form state
   const [urlInput, setUrlInput] = useState("");
@@ -40,9 +42,17 @@ export default function Home() {
   const [presetId, setPresetId] = useState<string>(DEFAULT_PRESET_ID);
   const [subtitlesEnabled, setSubtitlesEnabled] = useState(false);
   const [sponsorBlockEnabled, setSponsorBlockEnabled] = useState(false);
+  // Trim state
+  const [trimEnabled, setTrimEnabled] = useState(false);
+  const [trimStart, setTrimStart] = useState(0);
+  const [trimEnd, setTrimEnd] = useState(0);
+  const [isTrimModalOpen, setIsTrimModalOpen] = useState(false);
+  // Metadata embed state
+  const [embedMetaEnabled, setEmbedMetaEnabled] = useState(false);
 
   // UI state
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
   const [settingsInitialTab, setSettingsInitialTab] = useState<string | undefined>(undefined);
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -58,6 +68,13 @@ export default function Home() {
   // Clipboard URL banner — detected on window focus, dismissed per URL
   const [clipboardUrl, setClipboardUrl] = useState<string | null>(null);
   const dismissedClipboardUrls = useRef<Set<string>>(new Set());
+
+  // Multi-package orbit state
+  const [orbitingUrls, setOrbitingUrls] = useState<
+    { id: string; url: string; startX: number; startY: number }[]
+  >([]);
+  // Counter-based drag tracking so dragging over child elements doesn't flicker isDragging off
+  const dragCounterRef = useRef(0);
 
   const handleQueueWidthChange = useCallback((w: number) => {
     setQueueWidth(w);
@@ -84,6 +101,7 @@ export default function Home() {
     uploader?: string;
   }>>([]);
   const [isLoadingPlaylistVideos, setIsLoadingPlaylistVideos] = useState(false);
+  const [isAnimatingOut, setIsAnimatingOut] = useState(false);
 
   // Preview state
   const [urlPreviews, setUrlPreviews] = useState<Map<string, UrlPreview>>(new Map());
@@ -98,12 +116,14 @@ export default function Home() {
   // Extract + expand URLs from input.
   // Range patterns like [23-27] are expanded to individual URLs.
   // rangeGroups tracks which original patterns produced multiple URLs (for the panel batch card).
+  const deferredUrlInput = useDeferredValue(urlInput);
+  
   const { extractedUrls, rangeGroups } = useMemo(() => {
-    if (!urlInput.trim()) {
+    if (!deferredUrlInput.trim()) {
       return { extractedUrls: [] as string[], rangeGroups: [] as { pattern: string; urls: string[] }[] };
     }
 
-    const normalized = normalizeBareUrls(urlInput);
+    const normalized = normalizeBareUrls(deferredUrlInput);
     const tokens = normalized.match(/https?:\/\/[^\s]+/g) ?? [];
     const seen = new Set<string>();
     const urls: string[] = [];
@@ -124,7 +144,7 @@ export default function Home() {
     }
 
     return { extractedUrls: urls, rangeGroups: ranges };
-  }, [urlInput]);
+  }, [deferredUrlInput]);
 
   // Flat set of all range-expanded URLs — these are NOT previewed individually
   const rangeExpandedSet = useMemo(
@@ -159,10 +179,25 @@ export default function Home() {
   // Spinner shows while ANY non-range URL is still loading
   const previewLoading = allPreviews.some((p) => p.loading);
 
-  // Handle splash screen completion
-  const handleSplashComplete = useCallback(() => {
-    setShowSplash(false);
-  }, []);
+  // Duration from preview (seconds) — drives trim slider range
+  const previewDuration = previewData?.duration_seconds ?? 0;
+
+  // Reset trim range when preview duration becomes known or URL changes
+  useEffect(() => {
+    if (previewDuration > 0) {
+      setTrimStart(0);
+      setTrimEnd(previewDuration);
+    }
+  }, [previewDuration]);
+
+  // Auto-open update modal when download finishes
+  useEffect(() => {
+    if (downlink.updateAvailable.readyToInstall) {
+      setIsUpdateModalOpen(true);
+    }
+  }, [downlink.updateAvailable.readyToInstall]);
+
+
 
   // Load settings on mount
   useEffect(() => {
@@ -191,7 +226,13 @@ export default function Home() {
         if (document.activeElement?.tagName !== "INPUT" && document.activeElement?.tagName !== "TEXTAREA") {
           e.preventDefault();
           try {
-            const text = await navigator.clipboard.readText();
+            let text = "";
+            if (downlink.isTauri) {
+              const { readText } = await import("@tauri-apps/plugin-clipboard-manager");
+              text = await readText() || "";
+            } else {
+              text = await navigator.clipboard.readText();
+            }
             if (text && text.includes("http")) {
               setUrlInput(text);
               inputRef.current?.focus();
@@ -207,62 +248,157 @@ export default function Home() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  // Detect URL in clipboard when window regains focus (tab visible).
-  // Only surfaces the banner if the URL is new and not already in the input.
+  // Keep a stable ref to urlInput so the focus handler always sees the latest value
+  // without being re-registered on every keystroke.
+  const urlInputRef = useRef(urlInput);
+  useEffect(() => { urlInputRef.current = urlInput; }, [urlInput]);
+  const orbitingUrlsRef = useRef(orbitingUrls);
+  useEffect(() => { orbitingUrlsRef.current = orbitingUrls; }, [orbitingUrls]);
+
+  // Detect URL in clipboard when window regains focus — uses Tauri's native focus
+  // event API (more reliable than browser window.focus in a webview).
   useEffect(() => {
     if (!downlink.isTauri) return;
-    const handleFocus = async () => {
+
+    let tauriUnlisten: (() => void) | null = null;
+
+    const checkClipboard = async () => {
       try {
-        const text = await navigator.clipboard.readText();
+        const { readText } = await import("@tauri-apps/plugin-clipboard-manager");
+        const text = await readText();
         if (!text) return;
-        const urls = text.match(/https?:\/\/[^\s]+/);
-        if (!urls) return;
-        const detected = urls[0];
-        // Skip: already typed, same as current input, or previously dismissed
-        if (
-          urlInput.includes(detected) ||
-          dismissedClipboardUrls.current.has(detected)
-        ) return;
-        setClipboardUrl(detected);
-      } catch { /* permission denied — silent */ }
+        const matches = text.match(/https?:\/\/[^\s]+/g);
+        if (!matches) return;
+        
+        const newUrls = matches
+          .map(m => m.replace(/[,;.]+$/, ""))
+          .filter(url => 
+            !urlInputRef.current.includes(url) && 
+            !dismissedClipboardUrls.current.has(url) &&
+            !orbitingUrlsRef.current.some(p => p.url === url)
+          );
+          
+        if (newUrls.length === 0) return;
+        
+        // Remove duplicates within the new array itself
+        const uniqueNewUrls = Array.from(new Set(newUrls));
+        setClipboardUrl(uniqueNewUrls.join("\n"));
+      } catch {
+        /* clipboard permission denied — silent */
+      }
     };
 
-    const handleVisibility = () => {
-      if (document.visibilityState === "visible") handleFocus();
+    const setup = async () => {
+      try {
+        const { getCurrentWindow } = await import("@tauri-apps/api/window");
+        const appWindow = getCurrentWindow();
+
+        // Tauri's native OS-level focus event — fires when the user clicks into the app
+        const unlisten = await appWindow.onFocusChanged(({ payload: focused }) => {
+          if (focused) {
+            // Small delay so the OS clipboard is fully updated before we read it
+            setTimeout(checkClipboard, 300);
+          }
+        });
+        tauriUnlisten = unlisten;
+      } catch {
+        // Silent fallback
+      }
+      
+      // Also attach to standard DOM events as a reliable fallback for webviews
+      const handleFocus = () => setTimeout(checkClipboard, 300);
+      const handleVisibility = () => {
+        if (document.visibilityState === "visible") setTimeout(checkClipboard, 300);
+      };
+      const handleMouseEnter = () => setTimeout(checkClipboard, 100);
+      
+      window.addEventListener("focus", handleFocus);
+      document.addEventListener("visibilitychange", handleVisibility);
+      document.body.addEventListener("mouseenter", handleMouseEnter);
+      
+      // Override tauriUnlisten to also clean up DOM events
+      const originalUnlisten = tauriUnlisten;
+      tauriUnlisten = () => {
+        originalUnlisten?.();
+        window.removeEventListener("focus", handleFocus);
+        document.removeEventListener("visibilitychange", handleVisibility);
+        document.body.removeEventListener("mouseenter", handleMouseEnter);
+      };
     };
 
-    document.addEventListener("visibilitychange", handleVisibility);
-    window.addEventListener("focus", handleFocus);
+    setup();
+
+    const handleGlobalClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const isInteractive = target.closest('button, input, textarea, a, select, [role="button"], [role="menuitem"], [role="dialog"], [role="switch"]');
+      if (!isInteractive && inputRef.current) {
+        inputRef.current.focus();
+      }
+    };
+
+    window.addEventListener("click", handleGlobalClick);
     return () => {
-      document.removeEventListener("visibilitychange", handleVisibility);
-      window.removeEventListener("focus", handleFocus);
+      tauriUnlisten?.();
+      window.removeEventListener("click", handleGlobalClick);
     };
-  }, [downlink.isTauri, urlInput]);
+  }, [downlink.isTauri]); // stable — urlInput accessed via ref
 
-  // Drag and drop handlers
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(true);
-  }, []);
+  // Native document-level drag listeners (React synthetic events are unreliable
+  // for external-application drags in Tauri webviews).
+  useEffect(() => {
+    const onDragEnter = (e: DragEvent) => {
+      e.preventDefault();
+      dragCounterRef.current += 1;
+      setIsDragging(true);
+    };
 
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(false);
-  }, []);
+    const onDragOver = (e: DragEvent) => {
+      // Must preventDefault to allow drop
+      e.preventDefault();
+    };
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(false);
+    const onDragLeave = (e: DragEvent) => {
+      dragCounterRef.current -= 1;
+      if (dragCounterRef.current <= 0) {
+        dragCounterRef.current = 0;
+        setIsDragging(false);
+      }
+    };
 
-    const text = e.dataTransfer.getData("text/plain") || e.dataTransfer.getData("text/uri-list");
-    if (text && text.includes("http")) {
-      setUrlInput(text);
-      inputRef.current?.focus();
-    }
-  }, []);
+    const onDrop = (e: DragEvent) => {
+      e.preventDefault();
+      dragCounterRef.current = 0;
+      setIsDragging(false);
+
+      const text =
+        e.dataTransfer?.getData("text/plain") ||
+        e.dataTransfer?.getData("text/uri-list") ||
+        "";
+      if (text.includes("http")) {
+        // Split and add to orbiting state
+        const urls = text.split(/\r?\n/).filter(line => line.trim().includes("http"));
+        const newPackages = urls.map((url) => ({
+          id: Math.random().toString(36).substring(2, 9),
+          url: url.trim(),
+          startX: e.clientX,
+          startY: e.clientY,
+        }));
+        setOrbitingUrls((prev) => [...prev, ...newPackages]);
+      }
+    };
+
+    document.addEventListener("dragenter", onDragEnter);
+    document.addEventListener("dragover", onDragOver);
+    document.addEventListener("dragleave", onDragLeave);
+    document.addEventListener("drop", onDrop);
+
+    return () => {
+      document.removeEventListener("dragenter", onDragEnter);
+      document.removeEventListener("dragover", onDragOver);
+      document.removeEventListener("dragleave", onDragLeave);
+      document.removeEventListener("drop", onDrop);
+    };
+  }, []); // stable — no deps needed
 
   // Stable refs so effect deps don't change every render
   const fetchMetadataRef = useRef(downlink.fetchMetadata);
@@ -271,6 +407,25 @@ export default function Home() {
     fetchMetadataRef.current = downlink.fetchMetadata;
     fastFetchMetadataRef.current = downlink.fastFetchMetadata;
   });
+
+  // Listen for real-time tier progress hints from the backend and update the
+  // matching skeleton card so users see "Scanning page…" / "Deep scanning…" etc.
+  useEffect(() => {
+    if (!downlink.isTauri) return;
+    const handler = (e: Event) => {
+      const { url, hint } = (e as CustomEvent<{ url: string; hint: string }>).detail;
+      setUrlPreviews((prev) => {
+        if (!prev.has(url)) return prev;
+        const updated = new Map(prev);
+        const item = prev.get(url)!;
+        // Only update while still loading — don't stomp a resolved card
+        if (item.loading) updated.set(url, { ...item, fetchHint: hint });
+        return updated;
+      });
+    };
+    window.addEventListener("downlink:fetchProgress", handler);
+    return () => window.removeEventListener("downlink:fetchProgress", handler);
+  }, [downlink.isTauri]);
 
   // Auto-fetch preview for ALL extracted URLs in parallel.
   // Rules:
@@ -481,13 +636,19 @@ export default function Home() {
   // Handle paste button
   const handlePaste = useCallback(async () => {
     try {
-      const text = await navigator.clipboard.readText();
+      let text = "";
+      if (downlink.isTauri) {
+        const { readText } = await import("@tauri-apps/plugin-clipboard-manager");
+        text = await readText() || "";
+      } else {
+        text = await navigator.clipboard.readText();
+      }
       setUrlInput(text);
       inputRef.current?.focus();
     } catch {
       inputRef.current?.focus();
     }
-  }, []);
+  }, [downlink.isTauri]);
 
   // Handle download
   const handleDownload = useCallback(async () => {
@@ -506,6 +667,16 @@ export default function Home() {
     const hasSingleMeta = allPreviews.length === 1 && rangeGroups.length === 0;
 
     setIsSubmitting(true);
+    setIsAnimatingOut(true);
+
+    // Total animation = morph (0.3s) + drop (0.25s) + arc (0.5s) = 1.05s
+    // Stagger adds 0.1s per additional item. We add 50ms buffer.
+    const staggerMs = Math.max(0, extractedUrls.length - 1) * 100;
+    const animationMs = 1100 + staggerMs;
+
+    // Wait for the exit animation to finish before adding to backend
+    await new Promise((resolve) => setTimeout(resolve, animationMs));
+
     try {
       if (hasSingleMeta) {
         // Single URL — pass metadata to skip re-fetch, use per-URL quality selection
@@ -547,8 +718,16 @@ export default function Home() {
 
         let hasAnyIds = false;
         for (const [groupPreset, groupUrls] of qualityGroups) {
+          // Encode trim and meta flags into preset suffix (avoids DB schema change)
+          let effectivePreset = groupPreset;
+          if (trimEnabled && previewDuration > 0 && !previewData?.is_playlist) {
+            effectivePreset += `+trim:${trimStart.toFixed(1)}-${trimEnd.toFixed(1)}`;
+          }
+          if (embedMetaEnabled) {
+            effectivePreset += "+meta";
+          }
           const result = await downlink.addUrls(groupUrls.join("\n"), {
-            preset_id: groupPreset,
+            preset_id: effectivePreset,
             output_dir: destination,
             parent_id: null,
             source_kind: "single",
@@ -567,11 +746,14 @@ export default function Home() {
         }
       }
 
+      // Clear state immediately now that backend call is complete
       setUrlInput("");
       setUrlPreviews(new Map());
       fetchedUrlsRef.current.clear();
       qualitiesFetchingRef.current.clear();
       setSelectedQualityPerUrl(new Map());
+      setIsAnimatingOut(false);
+      setIsSubmitting(false);
 
       // Success toast
       const count = extractedUrls.length;
@@ -583,7 +765,6 @@ export default function Home() {
     } catch (e) {
       console.error("Failed to add download:", e);
       toast.error("Failed to add download — check console for details");
-    } finally {
       setIsSubmitting(false);
     }
   }, [
@@ -604,7 +785,12 @@ export default function Home() {
     if (!playlistDialogData) return;
 
     setIsSubmitting(true);
+    setIsAnimatingOut(true);
     const { url, metadata } = playlistDialogData;
+
+    // Wait for the exit animation to finish before adding to backend
+    // Playlists only have 1 preview card, so no stagger delay is needed.
+    await new Promise((resolve) => setTimeout(resolve, 1100));
 
     try {
       if (downloadPlaylist) {
@@ -658,13 +844,20 @@ export default function Home() {
 
       setUrlInput("");
       setUrlPreviews(new Map());
+      fetchedUrlsRef.current.clear();
+      qualitiesFetchingRef.current.clear();
+      setSelectedQualityPerUrl(new Map());
     } catch (e) {
       console.error("Failed to handle playlist:", e);
     } finally {
       setIsSubmitting(false);
-      setPlaylistDialogOpen(false);
-      setPlaylistDialogData(null);
-      setPlaylistVideos([]);
+      // Wait an extra 200ms to guarantee the modal's GSAP exit animation finishes before unmounting
+      setTimeout(() => {
+        setIsAnimatingOut(false);
+        setPlaylistDialogOpen(false);
+        setPlaylistDialogData(null);
+        setPlaylistVideos([]);
+      }, 200);
     }
   }, [playlistDialogData, playlistVideos, downlink, presetId, destination, settings]);
 
@@ -729,35 +922,50 @@ export default function Home() {
     setSelectedQualityPerUrl(new Map());
   }, []);
 
-  // Show splash screen while app is loading
-  if (showSplash || !appReady) {
-    return <SplashScreen onComplete={handleSplashComplete} minimumDuration={2000} />;
-  }
+
 
   return (
     <div
-      className={`flex h-screen flex-col bg-zinc-950 text-white ${isDragging ? "ring-2 ring-inset ring-blue-500" : ""}`}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
+      className="relative flex h-screen flex-col bg-transparent text-white"
     >
-      {/* Clipboard URL banner */}
-      {clipboardUrl && (
-        <div className="px-3 pt-2">
-          <ClipboardBanner
-            url={clipboardUrl}
-            onAccept={() => {
-              setUrlInput(clipboardUrl);
-              setClipboardUrl(null);
-              dismissedClipboardUrls.current.add(clipboardUrl);
-              inputRef.current?.focus();
-            }}
-            onDismiss={() => {
-              dismissedClipboardUrls.current.add(clipboardUrl);
-              setClipboardUrl(null);
-            }}
-          />
-        </div>
+      {/* BlackHole Drop Zone Overlay */}
+      {(isDragging || clipboardUrl || orbitingUrls.length > 0) && (
+        <BlackHoleOverlay
+          mode={isDragging ? "drag" : "clipboard"}
+          clipboardUrl={clipboardUrl}
+          orbitingUrls={orbitingUrls}
+          onDropPackage={(x, y, urls) => {
+            const newPackages = urls.map((url) => ({
+              id: Math.random().toString(36).substring(2, 9),
+              url,
+              startX: x + (Math.random() * 40 - 20), // slight offset if multiple
+              startY: y + (Math.random() * 40 - 20),
+            }));
+            setOrbitingUrls((prev) => [...prev, ...newPackages]);
+            setClipboardUrl(null);
+            import("@tauri-apps/plugin-clipboard-manager").then(m => m.writeText("")).catch(() => {});
+          }}
+          onAbsorb={(url) => {
+            if (url) {
+              setUrlInput((prev) => {
+                if (!prev) return url;
+                if (prev.includes(url)) return prev;
+                return prev.trim() + "\n" + url;
+              });
+              dismissedClipboardUrls.current.add(url);
+              setOrbitingUrls((prev) => prev.filter((p) => p.url !== url));
+              
+              if (clipboardUrl === url || clipboardUrl?.includes(url)) {
+                setClipboardUrl(null);
+                import("@tauri-apps/plugin-clipboard-manager").then(m => m.writeText("")).catch(() => {});
+              }
+            }
+            inputRef.current?.focus();
+          }}
+          onDismiss={() => {
+            setClipboardUrl(null);
+          }}
+        />
       )}
 
       {/* Header bar */}
@@ -774,28 +982,35 @@ export default function Home() {
         }}
         onPaste={handlePaste}
         onSubmit={handleDownload}
-      onSettingsClick={() => openSettings()}
+        onSettingsClick={() => openSettings()}
         isLoading={previewLoading}
         inputRef={inputRef}
         urlCount={extractedUrls.length}
+        updateState={downlink.updateAvailable}
+        onUpdateClick={() => setIsUpdateModalOpen(true)}
       />
 
       {/* Main content area */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className={`flex flex-1 ${isAnimatingOut ? "overflow-visible" : "overflow-hidden"}`}>
         {/* Left side - Preview or Empty state */}
         <div className="flex-1 flex flex-col border-r border-zinc-800">
           {/* Preview area — scrollable so multi-URL list can grow */}
-          <div className="flex-1 overflow-y-auto">
+          <div className={`flex-1 ${isAnimatingOut ? "overflow-visible" : "overflow-y-auto"}`}>
             <div className="flex min-h-full items-center justify-center p-6">
               <PreviewPanel
                 previewData={previewData}
                 previewLoading={previewLoading}
                 previewError={previewError}
                 isDragging={isDragging}
+                isExiting={isAnimatingOut}
                 onClearPreview={handleClearPreview}
                 allPreviews={allPreviews}
                 rangeGroups={rangeGroups}
                 selectedQualitiesMap={selectedQualityPerUrl}
+                trimEnabled={trimEnabled}
+                trimStart={trimStart}
+                trimEnd={trimEnd}
+                onTrimChange={(s, e) => { setTrimStart(s); setTrimEnd(e); }}
                 onSelectQuality={(url, formatString) => {
                   setSelectedQualityPerUrl((prev) => {
                     const updated = new Map(prev);
@@ -813,20 +1028,30 @@ export default function Home() {
           </div>
 
           {/* Action bar — always visible so presets are always accessible */}
-          <ActionBar
-            presetId={presetId}
-            onPresetChange={setPresetId}
-            presets={PRESETS}
-            subtitlesEnabled={subtitlesEnabled}
-            onSubtitlesToggle={() => setSubtitlesEnabled(!subtitlesEnabled)}
-            sponsorBlockEnabled={sponsorBlockEnabled}
-            onSponsorBlockToggle={() => setSponsorBlockEnabled(!sponsorBlockEnabled)}
-            onDownload={handleDownload}
-            isSubmitting={isSubmitting}
-            isPlaylist={previewData?.is_playlist ?? false}
-            disabled={!urlInput.trim()}
-            previewLoading={previewLoading}
-          />
+          <div id="action-bar-container">
+            <ActionBar
+              presetId={presetId}
+              onPresetChange={setPresetId}
+              presets={PRESETS}
+              subtitlesEnabled={subtitlesEnabled}
+              onSubtitlesToggle={() => setSubtitlesEnabled(!subtitlesEnabled)}
+              sponsorBlockEnabled={sponsorBlockEnabled}
+              onSponsorBlockToggle={() => setSponsorBlockEnabled(!sponsorBlockEnabled)}
+              trimEnabled={trimEnabled}
+              onTrimToggle={() => trimEnabled ? setTrimEnabled(false) : setIsTrimModalOpen(true)}
+              trimStart={trimStart}
+              trimEnd={trimEnd}
+              onTrimChange={(s, e) => { setTrimStart(s); setTrimEnd(e); }}
+              duration={previewDuration}
+              embedMetaEnabled={embedMetaEnabled}
+              onEmbedMetaToggle={() => setEmbedMetaEnabled(!embedMetaEnabled)}
+              onDownload={handleDownload}
+              isSubmitting={isSubmitting}
+              isPlaylist={previewData?.is_playlist ?? false}
+              disabled={!urlInput.trim()}
+              previewLoading={previewLoading}
+            />
+          </div>
         </div>
 
         {/* Right side - Download queue */}
@@ -836,12 +1061,10 @@ export default function Home() {
           minWidth={260}
           maxWidth={480}
         />
-        <div style={{ width: queueWidth, minWidth: queueWidth, maxWidth: queueWidth }} className="flex-shrink-0">
+        <div id="download-queue-container" style={{ width: queueWidth, minWidth: queueWidth, maxWidth: queueWidth }} className="flex-shrink-0">
         <DownloadQueue
           queue={downlink.queue}
           history={downlink.history}
-          showHistory={showHistory}
-          onShowHistoryChange={setShowHistory}
           onStop={downlink.stopDownload}
           onCancel={downlink.cancelDownload}
           onRemove={downlink.removeDownload}
@@ -850,6 +1073,7 @@ export default function Home() {
           onOpenFolder={downlink.openFolder}
           onClearQueue={downlink.clearQueue}
           onClearHistory={downlink.clearHistory}
+          onTranscribe={downlink.transcribeFile}
         />
         </div>
       </div>
@@ -875,10 +1099,37 @@ export default function Home() {
         initialTab={settingsInitialTab as Parameters<typeof SettingsModal>[0]["initialTab"]}
       />
 
+      {/* Update Modal */}
+      <UpdateModal
+        isOpen={isUpdateModalOpen}
+        onClose={() => setIsUpdateModalOpen(false)}
+        updateState={downlink.updateAvailable}
+        installAppUpdate={downlink.installAppUpdate}
+        restartApp={downlink.restartApp}
+      />
+
+      {/* Trim Modal */}
+      <TrimModal
+        isOpen={isTrimModalOpen}
+        onClose={() => setIsTrimModalOpen(false)}
+        previewUrl={allPreviews[0]?.url || previewData?.url || ""}
+        streamUrl={previewData?.stream_url || previewData?.url || ""}
+        thumbnailUrl={previewData?.thumbnail_url ?? undefined}
+        duration={previewDuration}
+        initialStart={trimStart}
+        initialEnd={trimEnd}
+        onSave={(start, end) => {
+          setTrimStart(start);
+          setTrimEnd(end);
+          setTrimEnabled(true);
+        }}
+      />
+
       {/* Playlist Dialog */}
       {playlistDialogData && (
         <PlaylistDialog
           isOpen={playlistDialogOpen}
+          isExiting={isAnimatingOut}
           onClose={() => {
             setPlaylistDialogOpen(false);
             setPlaylistVideos([]);

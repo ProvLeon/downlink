@@ -450,7 +450,10 @@ impl DownloadManager {
                 if domain_count >= MAX_PER_DOMAIN {
                     log::info!(
                         "Per-domain limit reached for '{}' ({}/{}), download {} will wait",
-                        hostname, domain_count, MAX_PER_DOMAIN, id
+                        hostname,
+                        domain_count,
+                        MAX_PER_DOMAIN,
+                        id
                     );
                     return Ok(());
                 }
@@ -529,7 +532,11 @@ impl DownloadManager {
                 // Update status to Fetching
                 {
                     let mut db_guard = db.lock().await;
-                    let _ = db_guard.set_status(id, DownloadStatus::Fetching, Some("Fetching metadata..."));
+                    let _ = db_guard.set_status(
+                        id,
+                        DownloadStatus::Fetching,
+                        Some("Fetching metadata..."),
+                    );
                 }
 
                 // Emit progress event for fetching phase
@@ -593,7 +600,6 @@ impl DownloadManager {
                 }
             }
 
-
             // ── Phase 2: Emit Started, then enter retry loop ──────────────────
             // Update status to Downloading
             {
@@ -601,9 +607,7 @@ impl DownloadManager {
                 let _ = db_guard.set_status(id, DownloadStatus::Downloading, Some("Starting..."));
             }
 
-            let _ = event_tx
-                .send(DownlinkEvent::DownloadStarted { id })
-                .await;
+            let _ = event_tx.send(DownlinkEvent::DownloadStarted { id }).await;
 
             let source_url = download_info.source_url.clone();
             let preset_id = download_info.preset_id.clone();
@@ -624,7 +628,11 @@ impl DownloadManager {
                 let cancel_rx = match cancel_rx {
                     Some(rx) => rx,
                     None => {
-                        log::info!("Download {} was removed before retry attempt {}", id, attempt + 1);
+                        log::info!(
+                            "Download {} was removed before retry attempt {}",
+                            id,
+                            attempt + 1
+                        );
                         break Err(DownloadError::Stopped);
                     }
                 };
@@ -655,7 +663,10 @@ impl DownloadManager {
                         let delay = BASE_DELAY_SECS * (1 << attempt); // 5s, 10s, 20s
                         log::warn!(
                             "Download {} failed (attempt {}/{}), retrying in {}s…",
-                            id, attempt, MAX_RETRIES, delay
+                            id,
+                            attempt,
+                            MAX_RETRIES,
+                            delay
                         );
                         // Surface a retrying event so the UI shows feedback
                         let _ = event_tx
@@ -669,7 +680,10 @@ impl DownloadManager {
                                     speed_bps: None,
                                     eta_seconds: Some(delay),
                                     phase: Some(Phase {
-                                        name: format!("Retrying in {}s… (attempt {}/{})", delay, attempt, MAX_RETRIES),
+                                        name: format!(
+                                            "Retrying in {}s… (attempt {}/{})",
+                                            delay, attempt, MAX_RETRIES
+                                        ),
                                         detail: None,
                                     }),
                                 },
@@ -870,11 +884,57 @@ async fn execute_download(
     resumable: bool,
 ) -> Result<Option<String>, DownloadError> {
     // ── Decode feature-flag suffixes from preset_id ───────────────────────────
-    // Format: "<base_preset>[+subs][+sb]"  e.g. "best_video+subs+sb"
+    // Format: "<base_preset>[+subs][+sb][+trim:SS.S-EE.E][+meta]"
     // Use replace() to strip suffixes — safe on any byte boundary.
-    let wants_subtitles    = preset_id.contains("+subs");
+    let wants_subtitles = preset_id.contains("+subs");
     let wants_sponsorblock = preset_id.contains("+sb");
-    let clean_preset = preset_id.replace("+subs", "").replace("+sb", "");
+    let wants_meta = preset_id.contains("+meta");
+
+    // Extract trim section: "+trim:SS.S-EE.E"
+    let trim_section: Option<String> = {
+        if let Some(trim_idx) = preset_id.find("+trim:") {
+            let after = &preset_id[trim_idx + 6..];
+            // section ends at next '+' or end-of-string
+            let end = after.find('+').unwrap_or(after.len());
+            let range_str = &after[..end];
+            // Expect "SS.S-EE.E"
+            if let Some(dash) = range_str.find('-') {
+                let start_s = range_str[..dash].parse::<f64>().ok();
+                let end_s = range_str[dash + 1..].parse::<f64>().ok();
+                if let (Some(s), Some(e)) = (start_s, end_s) {
+                    // Format as *HH:MM:SS-HH:MM:SS for yt-dlp
+                    let fmt = |secs: f64| -> String {
+                        let total = secs as u64;
+                        let h = total / 3600;
+                        let m = (total % 3600) / 60;
+                        let sec = total % 60;
+                        format!("{:02}:{:02}:{:02}", h, m, sec)
+                    };
+                    Some(format!("*{}-{}", fmt(s), fmt(e)))
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    };
+
+    // Strip ALL suffixes to get the clean preset id
+    let clean_preset = {
+        let mut p = preset_id.to_string();
+        p = p.replace("+subs", "");
+        p = p.replace("+sb", "");
+        p = p.replace("+meta", "");
+        // Strip +trim:... block
+        while let Some(idx) = p.find("+trim:") {
+            let end = p[idx + 1..].find('+').map(|i| idx + 1 + i).unwrap_or(p.len());
+            p.drain(idx..end);
+        }
+        p
+    };
     let preset_id = clean_preset.as_str();
 
     // Support "custom:<format_string>" as a preset_id for user-selected qualities.
@@ -933,11 +993,36 @@ async fn execute_download(
         log::info!("Download {} — SponsorBlock removal enabled", id);
     }
 
+    // Inject trim / download-sections arg
+    if let Some(ref section) = trim_section {
+        args.push("--download-sections".to_string());
+        args.push(section.clone());
+        // Force keyframe splitting so the cut is at least approximately accurate
+        args.push("--force-keyframes-at-cuts".to_string());
+        log::info!("Download {} — trim sections: {}", id, section);
+    }
+
+    // Inject metadata embedding args (requires ffmpeg)
+    if wants_meta {
+        args.extend([
+            "--embed-thumbnail".to_string(),
+            "--add-metadata".to_string(),
+            "--embed-metadata".to_string(),
+            // Ensure thumbnail is converted to a compatible format for embedding
+            "--convert-thumbnails".to_string(),
+            "jpg".to_string(),
+        ]);
+        log::info!("Download {} — metadata embedding enabled", id);
+    }
+
     // Resume partial file if this download was previously Stopped
     if resumable {
         args.push("--continue".to_string());
         args.push("--no-part".to_string()); // write directly to final file so --continue works
-        log::info!("Download {} is resumable — injecting --continue --no-part", id);
+        log::info!(
+            "Download {} is resumable — injecting --continue --no-part",
+            id
+        );
     }
 
     // Add ffmpeg location if configured
@@ -984,7 +1069,9 @@ async fn execute_download(
 
     let mut stderr_lines: Vec<String> = Vec::new();
     let mut final_path: Option<String> = None;
-    let mut last_percent: f64 = 0.0;
+    let mut last_raw_percent: f64 = 0.0;
+    let mut reported_percent: f64 = 0.0;
+    let mut streams_completed: u8 = 0;
 
     // Progress regex for our custom template: [downlink] 50.5% 1.5MiB/s 00:30 100MiB
     let progress_re = Regex::new(r"\[downlink\]\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)").ok();
@@ -996,6 +1083,8 @@ async fn execute_download(
     let merge_re = Regex::new(r"\[Merger\]|Merging formats|\[ffmpeg\]").ok();
     let dest_re = Regex::new(r#"\[download\] Destination: (.+)"#).ok();
     let already_re = Regex::new(r#"\[download\] (.+) has already been downloaded"#).ok();
+    let merge_dest_re = Regex::new(r#"Merging formats into "([^"]+)""#).ok();
+    let move_dest_re = Regex::new(r#"Moving file(?:.*?) to "([^"]+)""#).ok();
     let finished_re = Regex::new(r#"\[download\] 100%"#).ok();
 
     loop {
@@ -1060,12 +1149,28 @@ async fn execute_download(
                         }
 
                         // Send progress event if we parsed something
-                        if let Some(p) = parsed {
+                        if let Some(mut p) = parsed {
+                            // Detect if yt-dlp started downloading a second stream (e.g. audio after video)
+                            let current_raw_percent = p.percent.unwrap_or(0.0);
+                            
+                            if current_raw_percent < last_raw_percent - 50.0 {
+                                streams_completed += 1;
+                            }
+                            last_raw_percent = current_raw_percent;
+                            
+                            // Map progress assuming 2 streams total (Video -> 0-50%, Audio -> 50-100%)
+                            let adjusted_percent = if streams_completed == 0 {
+                                current_raw_percent / 2.0
+                            } else {
+                                50.0 + (current_raw_percent / 2.0).min(50.0)
+                            };
+                            
+                            p.percent = Some(adjusted_percent);
+
                             // Only send if percent changed significantly (avoid flooding)
-                            let current_percent = p.percent.unwrap_or(0.0);
-                            if (current_percent - last_percent).abs() >= 0.5 || current_percent >= 99.9 {
-                                last_percent = current_percent;
-                                log::info!("Progress: {}%", current_percent);
+                            if (adjusted_percent - reported_percent).abs() >= 0.5 || adjusted_percent >= 99.9 {
+                                reported_percent = adjusted_percent;
+                                log::info!("Progress: {}% (Raw: {}%)", adjusted_percent, current_raw_percent);
                                 let _ = event_tx.send(DownlinkEvent::DownloadProgress {
                                     id,
                                     status: events::DownloadStatus::Downloading,
@@ -1125,6 +1230,18 @@ async fn execute_download(
                             }
                         }
 
+                        // Capture post-processing destination paths (e.g. Merging, Moving)
+                        if let Some(ref re) = merge_dest_re {
+                            if let Some(caps) = re.captures(&l) {
+                                final_path = caps.get(1).map(|m| m.as_str().to_string());
+                            }
+                        }
+                        if let Some(ref re) = move_dest_re {
+                            if let Some(caps) = re.captures(&l) {
+                                final_path = caps.get(1).map(|m| m.as_str().to_string());
+                            }
+                        }
+
                         // Check for already downloaded
                         if let Some(ref re) = already_re {
                             if let Some(caps) = re.captures(&l) {
@@ -1164,6 +1281,50 @@ async fn execute_download(
     if !status.success() {
         let stderr_text = stderr_lines.join("\n");
         let (code, message, actions) = classify_error(&stderr_text);
+        
+        // Tier 4: Raw Download Bypass
+        if url.contains(".m3u8") || url.contains(".mp4") {
+            log::warn!("Tier 4 Bypass: yt-dlp failed, falling back to raw ffmpeg bypass for {}", url);
+            let final_fallback_path = format!("{}/downlink_raw_{}.mp4", output_dir, id);
+            
+            let ffmpeg_path = config.read().await.ffmpeg_path.clone();
+            if let Some(ffmpeg_bin) = ffmpeg_path {
+                let mut ffmpeg_cmd = Command::new(ffmpeg_bin);
+                ffmpeg_cmd.args(["-i", url, "-c", "copy", "-y", &final_fallback_path]);
+                
+                #[cfg(windows)]
+                ffmpeg_cmd.creation_flags(CREATE_NO_WINDOW);
+
+                // Notify UI we are using fallback
+                let _ = event_tx.send(DownlinkEvent::DownloadProgress {
+                    id,
+                    status: events::DownloadStatus::Downloading,
+                    progress: Progress {
+                        percent: None,
+                        bytes_downloaded: None,
+                        bytes_total: None,
+                        speed_bps: None,
+                        eta_seconds: None,
+                        phase: Some(Phase {
+                            name: "Fallback raw extraction...".to_string(),
+                            detail: None,
+                        }),
+                    },
+                }).await;
+
+                if let Ok(mut ffmpeg_child) = ffmpeg_cmd.spawn() {
+                    let _ = ffmpeg_child.wait().await;
+                    // Check if file was created and has size > 0
+                    if let Ok(metadata) = std::fs::metadata(&final_fallback_path) {
+                        if metadata.len() > 0 {
+                            log::info!("Tier 4 Bypass successful! Saved to {}", final_fallback_path);
+                            return Ok(Some(final_fallback_path));
+                        }
+                    }
+                }
+            }
+        }
+
         return Err(DownloadError::Failed {
             code,
             message,

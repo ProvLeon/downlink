@@ -88,8 +88,9 @@ export interface FetchMetadataOptions {
 
 // Fetch metadata result
 export interface FetchMetadataResult {
-  id: string;
+  id: string; // Uuid
   url: string;
+  stream_url?: string | null;
   is_playlist: boolean;
   title: string | null;
   uploader: string | null;
@@ -161,6 +162,7 @@ export interface UserSettings {
   updates: UpdateSettings;
   privacy: PrivacySettings;
   network: NetworkSettings;
+  transcription: TranscriptionSettings;
 }
 
 export interface GeneralSettings {
@@ -225,6 +227,19 @@ export interface NetworkSettings {
   socket_timeout: number;
 }
 
+export type TranscriptionProvider = "groq" | "open_a_i" | "gemini";
+
+export const TRANSCRIPTION_PROVIDERS: { id: TranscriptionProvider; label: string; note: string; keyLabel: string; keyLink: string }[] = [
+  { id: "groq",   label: "Groq (Free)",    note: "Fast, free tier · Whisper large-v3", keyLabel: "console.groq.com → API Keys",             keyLink: "https://console.groq.com/keys" },
+  { id: "open_a_i", label: "OpenAI",         note: "Paid · whisper-1 · $0.006/min",      keyLabel: "platform.openai.com → API Keys",          keyLink: "https://platform.openai.com/api-keys" },
+  { id: "gemini", label: "Google Gemini",   note: "Free tier · Gemini 1.5 Flash",       keyLabel: "aistudio.google.com → Get API key",       keyLink: "https://aistudio.google.com/app/apikey" },
+];
+
+export interface TranscriptionSettings {
+  provider: TranscriptionProvider;
+  api_key: string;
+}
+
 // Window state
 export interface WindowState {
   x: number;
@@ -252,7 +267,16 @@ export type DownlinkEventType =
   | "ToolUpdateAvailable"
   | "ToolUpdateProgress"
   | "ToolUpdateCompleted"
-  | "ToolUpdateFailed";
+  | "ToolUpdateFailed"
+  | "FetchProgress";
+
+export interface FetchProgressEvent {
+  event: "FetchProgress";
+  data: {
+    url: string;
+    hint: string;
+  };
+}
 
 // Event payloads
 export interface AppReadyEvent {
@@ -311,6 +335,7 @@ export type DownlinkEvent =
   | DownloadProgressEvent
   | DownloadCompletedEvent
   | DownloadFailedEvent
+  | FetchProgressEvent
   | { event: DownlinkEventType; data: unknown };
 
 // A discrete quality option from yt-dlp's format list
@@ -329,6 +354,7 @@ export interface UrlPreviewItem {
   data: FetchMetadataResult | null;
   error: string | null;
   qualitiesLoading?: boolean;  // true while background yt-dlp quality fetch is running
+  fetchHint?: string;          // real-time tier status hint from backend ("Scanning page…" etc.)
 }
 
 // UI state types

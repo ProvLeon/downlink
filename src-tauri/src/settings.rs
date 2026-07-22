@@ -39,6 +39,10 @@ pub struct UserSettings {
     /// Network settings
     #[serde(default)]
     pub network: NetworkSettings,
+
+    /// Transcription / AI settings
+    #[serde(default)]
+    pub transcription: TranscriptionSettings,
 }
 
 impl Default for UserSettings {
@@ -51,6 +55,7 @@ impl Default for UserSettings {
             updates: UpdateSettings::default(),
             privacy: PrivacySettings::default(),
             network: NetworkSettings::default(),
+            transcription: TranscriptionSettings::default(),
         }
     }
 }
@@ -336,6 +341,71 @@ impl Default for NetworkSettings {
         }
     }
 }
+
+/// Which AI provider to use for transcription.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum TranscriptionProvider {
+    /// Groq Whisper API — free tier, very fast. (console.groq.com)
+    #[default]
+    Groq,
+    /// OpenAI Whisper API — paid, $0.006/min. (platform.openai.com)
+    OpenAI,
+    /// Google Gemini — free tier via generativeai.google.com
+    Gemini,
+}
+
+impl TranscriptionProvider {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            TranscriptionProvider::Groq   => "groq",
+            TranscriptionProvider::OpenAI => "openai",
+            TranscriptionProvider::Gemini => "gemini",
+        }
+    }
+
+    /// Base URL for the audio transcription endpoint.
+    /// Groq + OpenAI share the same OpenAI-compatible API format.
+    pub fn api_base(&self) -> &'static str {
+        match self {
+            TranscriptionProvider::Groq   => "https://api.groq.com/openai/v1",
+            TranscriptionProvider::OpenAI => "https://api.openai.com/v1",
+            TranscriptionProvider::Gemini => "https://generativelanguage.googleapis.com/v1beta",
+        }
+    }
+
+    /// Display-friendly name.
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            TranscriptionProvider::Groq   => "Groq (Free)",
+            TranscriptionProvider::OpenAI => "OpenAI",
+            TranscriptionProvider::Gemini => "Google Gemini",
+        }
+    }
+}
+
+/// Transcription / AI subtitle settings.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TranscriptionSettings {
+    /// Which provider the user has selected.
+    #[serde(default)]
+    pub provider: TranscriptionProvider,
+
+    /// User-supplied API key for the selected provider.
+    /// When empty, the app falls back to the bundled key (Groq only).
+    #[serde(default)]
+    pub api_key: String,
+}
+
+impl Default for TranscriptionSettings {
+    fn default() -> Self {
+        Self {
+            provider: TranscriptionProvider::default(),
+            api_key: String::new(),
+        }
+    }
+}
+
 
 // Default value functions
 fn default_download_folder() -> PathBuf {
@@ -624,7 +694,10 @@ mod tests {
         let loaded = manager.get_user_settings().unwrap();
 
         assert_eq!(loaded.general.concurrency, 4);
-        assert_eq!(loaded.general.download_folder, PathBuf::from("/custom/path"));
+        assert_eq!(
+            loaded.general.download_folder,
+            PathBuf::from("/custom/path")
+        );
     }
 
     #[test]

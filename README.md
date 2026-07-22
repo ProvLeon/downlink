@@ -205,7 +205,7 @@ curl -L -o yt-dlp-x86_64-unknown-linux-gnu "https://github.com/yt-dlp/yt-dlp/rel
 chmod +x yt-dlp-*
 
 # Download ffmpeg
-curl -L -o ffmpeg.tar.xz "https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz"
+curl -L -o ffmpeg.tar.xz "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz"
 tar -xf ffmpeg.tar.xz
 mv ffmpeg-*-static/ffmpeg ffmpeg-x86_64-unknown-linux-gnu
 chmod +x ffmpeg-*

@@ -42,6 +42,7 @@ impl YtDlpConfig {
 #[derive(Debug, Clone)]
 pub struct PreviewMetadata {
     pub url: String,
+    pub stream_url: Option<String>,
     pub title: Option<String>,
     pub uploader: Option<String>,
     pub duration_seconds: Option<u64>,
@@ -165,21 +166,36 @@ impl YtDlpRunner {
         // Find the first line matching our tab-delimited print format
         for line in &lines {
             let parts: Vec<&str> = line.splitn(5, '\t').collect();
-            if parts.len() < 2 { continue; }
+            if parts.len() < 2 {
+                continue;
+            }
             let resolved_url = if parts[0].starts_with("http") {
                 parts[0].to_string()
             } else {
                 url.to_string()
             };
-            let title = if parts[1].is_empty() || parts[1] == "NA" { None } else { Some(parts[1].to_string()) };
-            if title.is_none() { continue; } // no title = not a valid video
+            let title = if parts[1].is_empty() || parts[1] == "NA" {
+                None
+            } else {
+                Some(parts[1].to_string())
+            };
+            if title.is_none() {
+                continue;
+            } // no title = not a valid video
 
-            let uploader = parts.get(2).filter(|s| !s.is_empty() && **s != "NA").map(|s| s.to_string());
-            let thumbnail_url = parts.get(3).filter(|s| !s.is_empty() && **s != "NA").map(|s| s.to_string());
+            let uploader = parts
+                .get(2)
+                .filter(|s| !s.is_empty() && **s != "NA")
+                .map(|s| s.to_string());
+            let thumbnail_url = parts
+                .get(3)
+                .filter(|s| !s.is_empty() && **s != "NA")
+                .map(|s| s.to_string());
             let duration_seconds = parts.get(4).and_then(|s| s.trim().parse::<u64>().ok());
 
             return Ok(Some(PreviewMetadata {
                 url: resolved_url,
+                stream_url: None,
                 title,
                 uploader,
                 duration_seconds,
@@ -199,7 +215,7 @@ impl YtDlpRunner {
     /// and as a fallback when fast_fetch_preview returns None.
     ///
     /// Slower (5-15 s) because yt-dlp must enumerate every available format stream.
-    pub async fn fetch_metadata(&self, url: &str) -> Result<(PreviewMetadata, YtDlpOutput)> {
+    pub async fn fetch_metadata(&self, url: &str, app: &tauri::AppHandle) -> Result<(PreviewMetadata, YtDlpOutput)> {
         // Check if URL contains playlist parameter (e.g., &list= or ?list=)
         let has_playlist_param = url.contains("list=") || url.contains("/playlist");
 
@@ -232,9 +248,51 @@ impl YtDlpRunner {
 
         args.push(url.to_string());
 
-        let (json_lines, output) = self
-            .exec_json_lines(&args, self.cfg.metadata_timeout)
-            .await?;
+        let result = self.exec_json_lines(&args, self.cfg.metadata_timeout).await;
+        
+        let (json_lines, output) = match result {
+            Ok(res) => res,
+            Err(e) => {
+                let mut retry_with_sniffed = false;
+                let mut sniffed_url_result = String::new();
+                
+                if let Some(ytdlp_err) = e.downcast_ref::<YtDlpError>() {
+                    if ytdlp_err.kind == YtDlpErrorKind::NonZeroExit {
+                        // Tier 2: HTML iframe sniffer
+                        let _ = crate::events::emit_event(app, crate::events::DownlinkEvent::FetchProgress {
+                            url: url.to_string(),
+                            hint: "Scanning page for video sources…".to_string(),
+                        });
+                        if let Some(sniffed) = fallback_iframe_sniffer(url).await {
+                            retry_with_sniffed = true;
+                            sniffed_url_result = sniffed;
+                        } else {
+                            // Tier 3: Headless WebView Sniffer
+                            let _ = crate::events::emit_event(app, crate::events::DownlinkEvent::FetchProgress {
+                                url: url.to_string(),
+                                hint: "Deep scanning with browser — this may take up to 30s…".to_string(),
+                            });
+                            if let Some(sniffed) = advanced_webview_sniffer(app, url).await {
+                                retry_with_sniffed = true;
+                                sniffed_url_result = sniffed;
+                            }
+                        }
+                    }
+                }
+                
+                if retry_with_sniffed {
+                    let last_idx = args.len() - 1;
+                    args[last_idx] = sniffed_url_result;
+                    let _ = crate::events::emit_event(app, crate::events::DownlinkEvent::FetchProgress {
+                        url: url.to_string(),
+                        hint: "Found stream — loading info…".to_string(),
+                    });
+                    self.exec_json_lines(&args, self.cfg.metadata_timeout).await?
+                } else {
+                    return Err(e);
+                }
+            }
+        };
         let first = json_lines
             .into_iter()
             .next()
@@ -301,7 +359,8 @@ impl YtDlpRunner {
                 kind: YtDlpErrorKind::NotFound,
                 message: format!("yt-dlp not found at {}", self.cfg.yt_dlp_path.display()),
                 output: None,
-            }.into());
+            }
+            .into());
         }
 
         let mut cmd = Command::new(&self.cfg.yt_dlp_path);
@@ -326,17 +385,23 @@ impl YtDlpRunner {
         let mut all_lines: Vec<String> = Vec::new();
         let mut stderr_lines: Vec<String> = Vec::new();
 
+        let mut stdout_done = false;
+        let mut stderr_done = false;
+
         let read_task = async {
             loop {
+                if stdout_done && stderr_done {
+                    break;
+                }
                 tokio::select! {
-                    line = stdout_reader.next_line() => match line {
+                    line = stdout_reader.next_line(), if !stdout_done => match line {
                         Ok(Some(l)) => { all_lines.push(l); }
-                        Ok(None) => break,
+                        Ok(None) => stdout_done = true,
                         Err(e) => return Err(anyhow!("stdout read error: {e}")),
                     },
-                    line = stderr_reader.next_line() => match line {
+                    line = stderr_reader.next_line(), if !stderr_done => match line {
                         Ok(Some(l)) => { if stderr_lines.len() < 500 { stderr_lines.push(l); } }
-                        Ok(None) => {}
+                        Ok(None) => stderr_done = true,
                         Err(e) => return Err(anyhow!("stderr read error: {e}")),
                     },
                 }
@@ -350,19 +415,29 @@ impl YtDlpRunner {
             return Err(YtDlpError {
                 kind: YtDlpErrorKind::Timeout,
                 message: format!("yt-dlp timed out after {:?}", timeout),
-                output: Some(YtDlpOutput { stdout_lines: all_lines, stderr_lines, exit_code: None }),
-            }.into());
+                output: Some(YtDlpOutput {
+                    stdout_lines: all_lines,
+                    stderr_lines,
+                    exit_code: None,
+                }),
+            }
+            .into());
         }
         timed.unwrap()?;
         let status = child.wait().await?;
-        let output = YtDlpOutput { stdout_lines: all_lines.clone(), stderr_lines, exit_code: status.code() };
+        let output = YtDlpOutput {
+            stdout_lines: all_lines.clone(),
+            stderr_lines,
+            exit_code: status.code(),
+        };
 
         if !status.success() {
             return Err(YtDlpError {
                 kind: YtDlpErrorKind::NonZeroExit,
                 message: format!("yt-dlp exited {:?}", status.code()),
                 output: Some(output),
-            }.into());
+            }
+            .into());
         }
         Ok((all_lines, output))
     }
@@ -417,13 +492,18 @@ impl YtDlpRunner {
         let mut stdout_lines: Vec<String> = Vec::new();
         let mut stderr_lines: Vec<String> = Vec::new();
         let mut json_lines: Vec<String> = Vec::new();
+        let mut stdout_done = false;
+        let mut stderr_done = false;
 
         // Read concurrently-ish in a simple loop. This is fine for metadata sized output.
         // If it becomes a perf issue, we can select over streams.
         let read_task = async {
             loop {
+                if stdout_done && stderr_done {
+                    break;
+                }
                 tokio::select! {
-                    line = stdout_reader.next_line() => {
+                    line = stdout_reader.next_line(), if !stdout_done => {
                         match line {
                             Ok(Some(l)) => {
                                 if stdout_lines.len() < MAX_STDOUT_LINES {
@@ -434,21 +514,18 @@ impl YtDlpRunner {
                                     json_lines.push(l);
                                 }
                             }
-                            Ok(None) => break,
+                            Ok(None) => stdout_done = true,
                             Err(e) => return Err(anyhow!("error reading yt-dlp stdout: {e}")),
                         }
                     }
-                    line = stderr_reader.next_line() => {
+                    line = stderr_reader.next_line(), if !stderr_done => {
                         match line {
                             Ok(Some(l)) => {
                                 if stderr_lines.len() < MAX_STDERR_LINES {
                                     stderr_lines.push(l);
                                 }
                             }
-                            Ok(None) => {
-                                // don't break; stdout might still have data
-                                // We'll break when stdout closes and process exits.
-                            }
+                            Ok(None) => stderr_done = true,
                             Err(e) => return Err(anyhow!("error reading yt-dlp stderr: {e}")),
                         }
                     }
@@ -527,6 +604,19 @@ fn parse_preview_metadata(json_line: &str, fallback_url: &str) -> Result<Preview
         .unwrap_or(fallback_url)
         .to_string();
 
+    let stream_url = v
+        .get("url")
+        .and_then(|x| x.as_str())
+        .map(|s| s.to_string())
+        .or_else(|| {
+            v.get("requested_formats")
+                .and_then(|x| x.as_array())
+                .and_then(|arr| arr.first())
+                .and_then(|f| f.get("url"))
+                .and_then(|x| x.as_str())
+                .map(|s| s.to_string())
+        });
+
     let title = v
         .get("title")
         .and_then(|x| x.as_str())
@@ -593,6 +683,7 @@ fn parse_preview_metadata(json_line: &str, fallback_url: &str) -> Result<Preview
 
     Ok(PreviewMetadata {
         url: webpage_url,
+        stream_url,
         title,
         uploader,
         duration_seconds,
@@ -732,7 +823,15 @@ fn parse_playlist_entry(json_line: &str, playlist_url: &str) -> Result<PlaylistE
     let thumbnail_url = v
         .get("thumbnail")
         .and_then(|x| x.as_str())
-        .map(|s| s.to_string());
+        .map(|s| s.to_string())
+        .or_else(|| {
+            v.get("thumbnails")
+                .and_then(|t| t.as_array())
+                .and_then(|arr| arr.last())
+                .and_then(|t| t.get("url"))
+                .and_then(|x| x.as_str())
+                .map(|s| s.to_string())
+        });
 
     // Prefer `webpage_url` if present.
     if let Some(u) = v.get("webpage_url").and_then(|x| x.as_str()) {
@@ -803,4 +902,254 @@ fn parse_playlist_entry(json_line: &str, playlist_url: &str) -> Result<PlaylistE
     }
 
     Err(anyhow!("playlist entry missing url/webpage_url/id"))
+}
+
+async fn fallback_iframe_sniffer(url: &str) -> Option<String> {
+    if !url.starts_with("http") {
+        return None;
+    }
+    
+    let client = reqwest::Client::builder()
+        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+        .timeout(Duration::from_secs(5))
+        .build()
+        .ok()?;
+        
+    let text = client.get(url).send().await.ok()?.text().await.ok()?;
+    
+    // Look for iframe src containing known providers
+    let re = regex::Regex::new(r#"(?i)https?://(?:www\.)?(?:ok\.ru|vidmoly|streamtape|dood|filemoon|mp4upload|vidsrc|megacloud|rabbitstream|streamwish|vidhide|sibnet|bilibili|iqiyi|youku)[^"'\s<>]+"#).ok()?;
+    
+    if let Some(captures) = re.captures(&text) {
+        if let Some(m) = captures.get(0) {
+            return Some(m.as_str().to_string());
+        }
+    }
+    None
+}
+
+use tauri::{Listener, Manager, WebviewUrl, WebviewWindowBuilder};
+
+async fn advanced_webview_sniffer(app: &tauri::AppHandle, url: &str) -> Option<String> {
+    log::info!("Tier 3: Starting headless webview sniffer for {}", url);
+
+    // Buffer 4 so overlapping events from multiple frames don't block each other.
+    let (tx, mut rx) = tokio::sync::mpsc::channel::<String>(4);
+    let tx_listen = tx.clone();
+    let tx_eval   = tx.clone();
+
+    let event_id = app.listen("sniffed-url", move |event| {
+        let payload = event.payload();
+        // Payload arrives as a raw JSON string — try both quoted and object forms.
+        let parsed = serde_json::from_str::<serde_json::Value>(payload).ok();
+        let found = parsed
+            .as_ref()
+            .and_then(|v| v.get("url"))
+            .and_then(|u| u.as_str())
+            .map(|s| s.to_string())
+            // Some Tauri versions double-encode as a plain JSON string
+            .or_else(|| {
+                serde_json::from_str::<String>(payload)
+                    .ok()
+                    .filter(|s| s.starts_with("http"))
+            });
+        if let Some(u) = found {
+            let _ = tx_listen.try_send(u);
+        }
+    });
+
+    // ── Initialization script injected into every frame (main + cross-origin iframes) ──
+    //
+    // Design decisions:
+    //   • Use window.__TAURI_INTERNALS__.invoke() — the correct Tauri v2 IPC.
+    //     (window.__TAURI__.event.emit() is the Tauri v1 API and does not exist in v2.)
+    //   • Override navigator.webdriver → false to bypass Cloudflare's basic bot check.
+    //   • Expanded URL hit-list: m3u8/mp4/ts streams + known embed domains that
+    //     yt-dlp can handle natively when passed directly.
+    //   • postMessage bridge as a belt-and-suspenders fallback in case
+    //     __TAURI_INTERNALS__ is unavailable in a deep sub-frame.
+    //   • MutationObserver catches <iframe src>, <video src>, <source src> set
+    //     by the page AFTER our script has already run.
+    //   • HTMLMediaElement.src property descriptor override for MSE-based players.
+    let init_script = r#"
+        // ── 1. Bot-detection bypass ──────────────────────────────────────────
+        try {
+            Object.defineProperty(navigator, 'webdriver', {
+                get: function() { return false; },
+                configurable: true
+            });
+        } catch(e) {}
+
+        // ── 2. Tauri v2 IPC emit helper ───────────────────────────────────────
+        function _dlEmit(rawUrl) {
+            if (!rawUrl || typeof rawUrl !== 'string') return;
+            if (!rawUrl.startsWith('http')) return;
+            // Deduplicate within the same frame by caching seen URLs
+            if (window._dlSeen && window._dlSeen.has(rawUrl)) return;
+            if (!window._dlSeen) window._dlSeen = new Set();
+            window._dlSeen.add(rawUrl);
+
+            // Use custom protocol scheme which is immune to Cloudflare CSP / missing context.
+            // A simple Image or fetch to `dlsniff://sniff?url=...` is intercepted natively.
+            try {
+                var img = new Image();
+                img.src = 'dlsniff://sniff?url=' + encodeURIComponent(rawUrl);
+            } catch(e) {}
+
+            // postMessage fallback — main frame will re-emit to Tauri
+            try { window.top.postMessage({ type: 'dl-sniff', url: rawUrl }, '*'); } catch(e) {}
+        }
+
+        // ── 3. postMessage receiver (main frame only) ─────────────────────────
+        if (window === window.top) {
+            window.addEventListener('message', function(ev) {
+                if (ev && ev.data && ev.data.type === 'dl-sniff') {
+                    _dlEmit(ev.data.url);
+                }
+            });
+        }
+
+        // ── 4. URL hit list ───────────────────────────────────────────────────
+        var DL_HITS = [
+            '.m3u8', '.mp4', '.ts', '.mkv', '.webm',
+            'vidmoly', 'streamtape', 'dood.', 'filemoon',
+            'ok.ru/video', 'sibnet', 'megacloud', 'rabbitstream',
+            'streamwish', 'vidhide', 'vidsrc', 'mp4upload',
+            'mixdrop', 'upstream', 'uqload', 'fembed', 'hydrax'
+        ];
+
+        function _dlCheck(u) {
+            if (!u || typeof u !== 'string') return;
+            for (var i = 0; i < DL_HITS.length; i++) {
+                if (u.indexOf(DL_HITS[i]) !== -1) { _dlEmit(u); return; }
+            }
+        }
+
+        // ── 5. fetch() intercept ──────────────────────────────────────────────
+        var _origFetch = window.fetch;
+        window.fetch = function() {
+            var u = arguments[0];
+            _dlCheck(typeof u === 'string' ? u : (u && u.url));
+            return _origFetch.apply(this, arguments);
+        };
+
+        // ── 6. XHR intercept ─────────────────────────────────────────────────
+        var _origOpen = XMLHttpRequest.prototype.open;
+        XMLHttpRequest.prototype.open = function(m, u) {
+            _dlCheck(u);
+            return _origOpen.apply(this, arguments);
+        };
+
+        // ── 7. HTMLMediaElement.src intercept (MSE / direct src) ─────────────
+        try {
+            var _srcDesc = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'src');
+            if (_srcDesc && _srcDesc.set) {
+                Object.defineProperty(HTMLMediaElement.prototype, 'src', {
+                    set: function(v) { _dlCheck(v); _srcDesc.set.call(this, v); },
+                    get: function()  { return _srcDesc.get.call(this); },
+                    configurable: true
+                });
+            }
+        } catch(e) {}
+
+        // ── 8. MutationObserver: catch dynamic <iframe>/<video>/<source> ──────
+        try {
+            var _mo = new MutationObserver(function(muts) {
+                muts.forEach(function(m) {
+                    m.addedNodes.forEach(function(n) {
+                        if (!n || n.nodeType !== 1) return;
+                        if (n.src) _dlCheck(n.src);
+                        if (n.querySelectorAll) {
+                            n.querySelectorAll('[src]').forEach(function(el) {
+                                _dlCheck(el.src || el.getAttribute('src'));
+                            });
+                        }
+                    });
+                    // Also watch attribute changes on existing nodes
+                    if (m.type === 'attributes' && m.attributeName === 'src') {
+                        _dlCheck(m.target && (m.target.src || m.target.getAttribute('src')));
+                    }
+                });
+            });
+            _mo.observe(document.documentElement || document, {
+                childList: true, subtree: true, attributes: true, attributeFilter: ['src']
+            });
+        } catch(e) {}
+    "#;
+
+    let label = format!("sniffer_{}", uuid::Uuid::new_v4().simple());
+
+    // Clone tx so the on_page_load closure can also drive the channel
+    // via eval-based performance resource scanning.
+    let hits: Vec<&'static str> = vec![
+        ".m3u8", ".mp4", ".ts", ".mkv", ".webm",
+        "vidmoly", "streamtape", "dood.", "filemoon",
+        "ok.ru/video", "sibnet", "megacloud", "rabbitstream",
+        "streamwish", "vidhide", "vidsrc", "mp4upload",
+        "mixdrop", "upstream", "uqload", "fembed", "hydrax",
+    ];
+    // Build a JS regex pattern from the hit-list so we can filter from Rust-side eval.
+    let hits_pattern = hits.join("|").replace('.', "\\.");
+    let scan_js = format!(
+        r#"
+        (function() {{
+            var HITS = /({hits})/ ;
+            performance.getEntriesByType('resource').forEach(function(e) {{
+                if (HITS.test(e.name)) {{ _dlCheck(e.name); }}
+            }});
+        }})();
+        "#,
+        hits = hits_pattern
+    );
+
+    let window = match WebviewWindowBuilder::new(
+        app,
+        label,
+        WebviewUrl::External(url.parse().unwrap_or_else(|_| "about:blank".parse().unwrap())),
+    )
+    // Real Safari UA so Cloudflare bot-checks pass
+    .user_agent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Safari/605.1.15")
+    .visible(false)
+    .initialization_script_for_all_frames(init_script)
+    .on_page_load(move |win, _payload| {
+        // After each page/frame load, periodically eval a performance-API scan.
+        // This catches resources that the fetch/XHR interceptors may have missed
+        // (e.g. resources fetched during the Cloudflare challenge redirect chain).
+        let scan = scan_js.clone();
+        let tx2 = tx_eval.clone();
+        tauri::async_runtime::spawn(async move {
+            for _ in 0..12u8 {
+                tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+                if tx2.is_closed() { break; }
+                let _ = win.eval(&scan);
+            }
+        });
+    })
+    .build()
+    {
+        Ok(w) => w,
+        Err(e) => {
+            log::error!("Failed to create sniffer window: {}", e);
+            app.unlisten(event_id);
+            return None;
+        }
+    };
+
+    // Wait up to 25 s — Cloudflare challenge + player iframe load can take 10-15 s.
+    let result = match tokio::time::timeout(std::time::Duration::from_secs(25), rx.recv()).await {
+        Ok(Some(sniffed)) => {
+            log::info!("Tier 3: Sniffed stream URL: {}", sniffed);
+            Some(sniffed)
+        }
+        _ => {
+            log::warn!("Tier 3: Timeout — no stream URL detected in 25 s");
+            None
+        }
+    };
+
+    // Always clean up
+    app.unlisten(event_id);
+    let _ = window.close();
+
+    result
 }

@@ -138,15 +138,15 @@ function Build-App {
     Push-Location $ProjectDir
 
     try {
-        # Install npm dependencies if needed
+        # Install bun dependencies if needed
         if (-not (Test-Path "node_modules")) {
-            Write-Info "Installing npm dependencies..."
-            npm install
+            Write-Info "Installing bun dependencies..."
+            bun install
         }
 
         # Build with Tauri
         Write-Info "Running Tauri build..."
-        npm run tauri:build -- --target $RustTarget
+        bun run tauri:build --target $RustTarget
 
         Write-Success "Build complete!"
 

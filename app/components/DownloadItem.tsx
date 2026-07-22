@@ -15,9 +15,15 @@ import {
   Loader2,
   ChevronDown,
   ChevronUp,
+  Mic,
+  FileText,
 } from "lucide-react";
 import type { QueueItem } from "../types";
 import { formatBytes, formatSpeed, formatEta } from "../types";
+import { LiquidProgress } from "./LiquidProgress";
+
+export type WhisperModel = "tiny" | "base" | "small" | "medium";
+type TranscribeState = "idle" | "loading" | "done" | "error" | "not_installed";
 
 interface DownloadItemProps {
   item: QueueItem;
@@ -27,6 +33,7 @@ interface DownloadItemProps {
   onRetry: (id: string) => void;
   onOpen: (path: string) => void;
   onOpenFolder: (path: string) => void;
+  onTranscribe?: (filePath: string, model: WhisperModel) => Promise<{ srt_path: string; method: string }>;
 }
 
 /** Tiny status pill */
@@ -111,6 +118,13 @@ function statusLabel(status: QueueItem["status"]): string {
   }
 }
 
+const WHISPER_MODEL_LABELS: Record<WhisperModel, string> = {
+  tiny:   "Tiny (fast)",
+  base:   "Base (balanced)",
+  small:  "Small (accurate)",
+  medium: "Medium (best)",
+};
+
 export function DownloadItem({
   item,
   onStop,
@@ -119,9 +133,18 @@ export function DownloadItem({
   onRetry,
   onOpen,
   onOpenFolder,
+  onTranscribe,
 }: DownloadItemProps) {
   const [errorExpanded, setErrorExpanded] = useState(false);
   const [isPortrait, setIsPortrait] = useState(false);
+
+  // Transcription state
+  const [transcribeState, setTranscribeState] = useState<"idle" | "loading" | "done" | "error">("idle");
+  const [selectedModel, setSelectedModel] = useState<WhisperModel>("base");
+  const [srtPath, setSrtPath] = useState<string | null>(null);
+  const [transcribeMethod, setTranscribeMethod] = useState<string | null>(null);
+  const [transcribeError, setTranscribeError] = useState<string | null>(null);
+  const [showModelPicker, setShowModelPicker] = useState(false);
 
   const isActive =
     item.status === "downloading" ||
@@ -148,6 +171,34 @@ export function DownloadItem({
     }
   }, [isActive, isDone, isFailed, isStopped, isQueued, item, onStop, onRetry, onOpen, onCancel, onRemove]);
 
+  const handleTranscribe = useCallback(async () => {
+    if (!onTranscribe || !item.final_path) return;
+    setTranscribeState("loading");
+    setTranscribeError(null);
+    setSrtPath(null);
+    setTranscribeMethod(null);
+    try {
+      const result = await onTranscribe(item.final_path, selectedModel);
+      setSrtPath(result.srt_path);
+      setTranscribeMethod(result.method);
+      setTranscribeState("done");
+    } catch (e) {
+      const msg = String(e);
+      // Clean up the error message if it's stringified JSON from Rust
+      let displayMsg = msg;
+      try {
+        const parts = msg.split(": ");
+        if (parts.length > 1) {
+          const kind = JSON.parse(parts[0].replace(/"/g, ''));
+          displayMsg = parts.slice(1).join(": ");
+        }
+      } catch (_) {}
+      
+      setTranscribeState("error");
+      setTranscribeError(displayMsg);
+    }
+  }, [onTranscribe, item.final_path, selectedModel]);
+
   return (
     <div
       role="listitem"
@@ -157,22 +208,22 @@ export function DownloadItem({
       className="rounded-xl bg-zinc-800/50 p-2.5 ring-1 ring-white/5 transition-colors hover:bg-zinc-800/80 animate-fade-in focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900"
     >
       <div className="flex items-start gap-2.5">
-
-        {/* ── Thumbnail ──────────────────────────────────── */}
-        <div className="relative h-12 w-20 flex-shrink-0 overflow-hidden rounded-lg bg-zinc-700">
+        {/* ── Thumbnail ─────────────────────────────────── */}
+        <div className="relative h-12 w-20 flex-shrink-0 overflow-hidden rounded-lg bg-zinc-700/60">
           {item.thumbnail_url ? (
             <Image
               src={item.thumbnail_url}
-              alt={item.title || "Video"}
+              alt=""
               fill
-              className={isPortrait ? "object-contain" : "object-cover"}
-              unoptimized
+              className={`object-cover transition-all duration-500 ${
+                isDone ? "opacity-60 grayscale" : "opacity-90"
+              }`}
               onLoad={(e) => {
-                const img = e.currentTarget as HTMLImageElement;
-                if (img.naturalWidth > 0 && img.naturalHeight > img.naturalWidth) {
-                  setIsPortrait(true);
-                }
+                const img = e.currentTarget;
+                setIsPortrait(img.naturalHeight > img.naturalWidth * 1.2);
               }}
+              sizes="80px"
+              unoptimized
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center">
@@ -180,85 +231,34 @@ export function DownloadItem({
             </div>
           )}
 
-          {/* Status overlays */}
-          {isActive && (
-            <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-              <Loader2 className="h-4 w-4 animate-spin text-blue-300" />
-            </div>
-          )}
+          {/* Done overlay checkmark */}
           {isDone && (
-            <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-              <Check className="h-4 w-4 text-green-400" />
-            </div>
-          )}
-          {isFailed && (
-            <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-              <X className="h-4 w-4 text-red-400" />
-            </div>
-          )}
-          {isStopped && (
-            <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-              <Pause className="h-4 w-4 text-yellow-400" />
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="flex h-6 w-6 items-center justify-center rounded-full bg-green-500/90 shadow-sm">
+                <Check className="h-3.5 w-3.5 text-white" />
+              </div>
             </div>
           )}
         </div>
 
-        {/* ── Info ───────────────────────────────────────── */}
+        {/* ── Main content ───────────────────────────────── */}
         <div className="min-w-0 flex-1">
-          {/* Title + actions row */}
           <div className="flex items-start justify-between gap-1">
+            {/* Title / URL */}
             <div className="min-w-0 flex-1">
-              <p
-                className="truncate text-xs font-semibold text-white leading-tight"
-                title={item.title || item.source_url}
-              >
-                {item.title || item.source_url}
+              <p className="truncate text-[12px] font-medium text-zinc-100 leading-snug">
+                {item.title || "Fetching info…"}
               </p>
               {item.uploader && (
-                <p className="truncate text-[10px] text-zinc-400 leading-tight mt-0.5">
+                <p className="truncate text-[10px] text-zinc-500 leading-snug">
                   {item.uploader}
                 </p>
               )}
             </div>
 
-            {/* ── Action buttons ─────────────────────────── */}
-            <div className="flex flex-shrink-0 items-center gap-0.5 ml-1">
-              {(isQueued || isStopped) && (
-                <button
-                  type="button"
-                  onClick={() => onRetry(item.id)}
-                  className="flex h-6 w-6 items-center justify-center rounded-md text-zinc-400 transition-colors hover:bg-zinc-700 hover:text-white"
-                  title={isStopped ? "Resume" : "Start"}
-                  aria-label={isStopped ? "Resume download" : "Start download"}
-                >
-                  <Play className="h-3.5 w-3.5" fill="currentColor" />
-                </button>
-              )}
-
-              {isActive && (
-                <button
-                  type="button"
-                  onClick={() => onStop(item.id)}
-                  className="flex h-6 w-6 items-center justify-center rounded-md text-zinc-400 transition-colors hover:bg-zinc-700 hover:text-yellow-300"
-                  title="Pause"
-                  aria-label="Pause download"
-                >
-                  <Pause className="h-3.5 w-3.5" />
-                </button>
-              )}
-
-              {isFailed && (
-                <button
-                  type="button"
-                  onClick={() => onRetry(item.id)}
-                  className="flex h-6 w-6 items-center justify-center rounded-md text-zinc-400 transition-colors hover:bg-zinc-700 hover:text-white"
-                  title="Retry"
-                  aria-label="Retry download"
-                >
-                  <RotateCcw className="h-3.5 w-3.5" />
-                </button>
-              )}
-
+            {/* Action buttons */}
+            <div className="flex flex-shrink-0 items-center gap-0.5">
+              {/* Open file (done only) */}
               {isDone && item.final_path && (
                 <button
                   type="button"
@@ -271,7 +271,33 @@ export function DownloadItem({
                 </button>
               )}
 
-              {/* Reveal in folder */}
+              {/* Retry (failed/stopped) */}
+              {(isFailed || isStopped) && (
+                <button
+                  type="button"
+                  onClick={() => onRetry(item.id)}
+                  className="flex h-6 w-6 items-center justify-center rounded-md text-zinc-400 transition-colors hover:bg-zinc-700 hover:text-blue-400"
+                  title="Retry download"
+                  aria-label="Retry download"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                </button>
+              )}
+
+              {/* Stop (active only) */}
+              {isActive && (
+                <button
+                  type="button"
+                  onClick={() => onStop(item.id)}
+                  className="flex h-6 w-6 items-center justify-center rounded-md text-zinc-400 transition-colors hover:bg-zinc-700 hover:text-yellow-400"
+                  title="Pause download"
+                  aria-label="Pause download"
+                >
+                  <Pause className="h-3.5 w-3.5" />
+                </button>
+              )}
+
+              {/* Open folder */}
               <button
                 type="button"
                 onClick={() =>
@@ -353,29 +379,12 @@ export function DownloadItem({
       {/* ── Progress bar ──────────────────────────────────── */}
       {(isActive || isStopped || isDone) && (
         <div className="mt-2.5">
-          <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-zinc-700/80">
-            <div
-              className={`h-full rounded-full transition-all duration-500 ease-out ${
-                isDone
-                  ? "bg-green-500"
-                  : isStopped
-                  ? "bg-yellow-500"
-                  : "bg-gradient-to-r from-blue-500 to-cyan-500"
-              }`}
-              style={{
-                width: `${progress}%`,
-                boxShadow: isActive
-                  ? "0 0 8px rgba(59,130,246,0.55), 0 0 2px rgba(6,182,212,0.4)"
-                  : isDone
-                  ? "0 0 6px rgba(34,197,94,0.4)"
-                  : undefined,
-              }}
-            />
-            {/* Shimmer on indeterminate */}
-            {isActive && progress === 0 && (
-              <div className="progress-shimmer absolute inset-0" />
-            )}
-          </div>
+          <LiquidProgress 
+            progress={progress} 
+            isActive={isActive} 
+            isDone={isDone} 
+            isStopped={isStopped} 
+          />
 
           {/* Progress labels */}
           <div className="mt-1 flex items-center justify-between text-[10px] text-zinc-500 tabular-nums">
@@ -394,6 +403,104 @@ export function DownloadItem({
               {isDone ? "100%" : progress > 0 ? `${progress.toFixed(1)}%` : ""}
             </span>
           </div>
+        </div>
+      )}
+
+      {/* ── AI Transcription panel (done items only) ──────── */}
+      {isDone && item.final_path && onTranscribe && (
+        <div className="mt-2.5 border-t border-zinc-700/50 pt-2.5">
+          {transcribeState === "idle" && (
+            <div className="flex items-center gap-2">
+              {/* Model selector */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setShowModelPicker((v) => !v)}
+                  className="flex items-center gap-1 rounded-md bg-zinc-700/60 px-2 py-1 text-[10px] text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200 transition-colors"
+                >
+                  {WHISPER_MODEL_LABELS[selectedModel]}
+                  <ChevronDown className="h-2.5 w-2.5" />
+                </button>
+                {showModelPicker && (
+                  <div className="absolute bottom-full left-0 mb-1 z-50 w-36 rounded-lg bg-zinc-800 p-1 ring-1 ring-white/10 shadow-xl animate-fade-in">
+                    {(Object.keys(WHISPER_MODEL_LABELS) as WhisperModel[]).map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => { setSelectedModel(m); setShowModelPicker(false); }}
+                        className={`w-full rounded-md px-2 py-1 text-left text-[10px] transition-colors ${
+                          selectedModel === m
+                            ? "bg-violet-600/20 text-violet-300"
+                            : "text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200"
+                        }`}
+                      >
+                        {WHISPER_MODEL_LABELS[m]}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={handleTranscribe}
+                className="flex items-center gap-1.5 rounded-md bg-violet-600/15 px-2.5 py-1 text-[10px] font-medium text-violet-400 ring-1 ring-violet-500/30 hover:bg-violet-600/25 hover:text-violet-300 transition-colors"
+              >
+                <Mic className="h-3 w-3" />
+                Transcribe
+              </button>
+              <span className="text-[9px] text-zinc-600">AI subtitle generation</span>
+            </div>
+          )}
+
+          {transcribeState === "loading" && (
+            <div className="flex items-center gap-2 text-[10px] text-violet-400">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              <span>Transcribing... (Using AI provider or local Whisper)</span>
+            </div>
+          )}
+
+          {transcribeState === "done" && srtPath && (
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center gap-2 text-[10px] text-green-400">
+                <FileText className="h-3 w-3" />
+                <span className="font-medium">SRT generated successfully</span>
+                <span className="text-zinc-500">•</span>
+                <span className="text-zinc-500 font-mono text-[9px] uppercase">{transcribeMethod?.replace(/_/g, ' ')}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => onOpen(srtPath)}
+                  className="flex items-center gap-1 rounded-md bg-green-600/10 px-2 py-0.5 text-[10px] text-green-400 ring-1 ring-green-500/20 hover:bg-green-600/20 transition-colors"
+                >
+                  <ExternalLink className="h-2.5 w-2.5" />
+                  Open .srt
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setTranscribeState("idle"); setSrtPath(null); }}
+                  className="text-[10px] text-zinc-600 hover:text-zinc-400 transition-colors"
+                >
+                  Transcribe again
+                </button>
+              </div>
+            </div>
+          )}
+
+          {transcribeState === "error" && (
+            <div className="rounded-lg bg-red-500/8 px-2.5 py-2 ring-1 ring-red-500/15">
+              <p className="text-[10px] text-red-400 break-words">
+                Transcription failed: {transcribeError}
+              </p>
+              <button
+                type="button"
+                onClick={() => { setTranscribeState("idle"); setTranscribeError(null); }}
+                className="mt-1 text-[10px] text-zinc-500 hover:text-zinc-400 transition-colors"
+              >
+                Try again
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

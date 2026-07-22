@@ -21,7 +21,7 @@ export function Footer({
   const handleToolClick = () => onOpenSettings?.("updates");
 
   return (
-    <div className="flex items-center justify-between border-t border-zinc-800/80 bg-zinc-950 px-4 py-1.5">
+    <div className="flex items-center justify-between bg-transparent px-4 py-2 pb-3">
       {/* Left: branding */}
       <div className="flex items-center gap-1.5">
         <Image

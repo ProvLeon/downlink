@@ -1,6 +1,6 @@
 [package]
 name = "app"
-version = "0.1.12"
+version = "0.1.39"
 description = "Downlink — cross-platform media downloader powered by yt-dlp"
 authors = ["downlink contributors"]
 license = "MIT"
@@ -19,7 +19,7 @@ tauri-build = { version = "2.5.3", features = [] }
 
 [dependencies]
 # --- Core runtime ---
-tauri = { version = "2.9.5", features = [] }
+tauri = { version = "2.9.5", features = ["macos-private-api"] }
 tauri-plugin-shell = "2"
 tauri-plugin-log = "2"
 tauri-plugin-updater = "2"
@@ -50,7 +50,7 @@ thiserror = "1"
 anyhow = "1"
 
 # --- Networking (tool manifest / updates) ---
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "gzip", "brotli"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "gzip", "brotli", "multipart", "stream"] }
 sha2 = "0.10"
 hex = "0.4"
 
@@ -62,3 +62,7 @@ regex = "1"
 which = "6"
 dirs = "5"
 open = "5"
+window-vibrancy = "0.7.1"
+tauri-plugin-clipboard-manager = "2"
+tauri-plugin-notification = "2"
+urlencoding = "2.1.3"

@@ -1,17 +1,18 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Downlink",
-  "version": "0.1.12",
+  "version": "0.1.39",
   "identifier": "com.downlink.downlink",
   "build": {
     "frontendDist": "../out",
     "devUrl": "http://localhost:3000",
-    "beforeDevCommand": "npm run dev",
-    "beforeBuildCommand": "npm run build"
+    "beforeDevCommand": "bun run dev",
+    "beforeBuildCommand": "bun run build"
   },
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "Downlink",
         "width": 900,
         "height": 700,
@@ -19,9 +20,35 @@
         "minHeight": 500,
         "resizable": true,
         "fullscreen": false,
-        "center": true
+        "center": true,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "transparent": true,
+        "visible": false,
+        "dragDropEnabled": false,
+        "windowEffects": {
+          "effects": [
+            "mica",
+            "blur"
+          ]
+        }
+      },
+      {
+        "label": "splashscreen",
+        "url": "/splash",
+        "width": 500,
+        "height": 500,
+        "resizable": false,
+        "fullscreen": false,
+        "center": true,
+        "decorations": false,
+        "transparent": true,
+        "visible": true,
+        "dragDropEnabled": false,
+        "alwaysOnTop": true
       }
     ],
+    "macOSPrivateApi": true,
     "security": {
       "csp": null
     }
@@ -57,9 +84,9 @@
   "plugins": {
     "updater": {
       "endpoints": [
-        "https://github.com/ProvLeon/downlink/releases/latest/download/latest.json"
+        "https://github.com/Orlixis/downlink/releases/latest/download/latest.json"
       ],
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEYzN0UwQzFFQzgzODUzQUUKUldTdVV6aklIZ3grODhCL1dWUncyemJyUWZadWNwUHFDcXVyTmdKRkhybzRyTzVYMi9SdEtsNm0K"
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDg1M0Y3MjZBRDA5ODgwNjAKUldSZ2dKalFhbkkvaGJOSERsNXFXQkQyN2Q4M0tscVlvK1lKQkFwSmxhQ1Q2dnZwSFhZZ0tNWVUK"
     }
   }
 }

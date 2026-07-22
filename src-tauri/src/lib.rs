@@ -24,6 +24,7 @@ mod models;
 mod settings;
 mod tool_manager;
 mod url_utils;
+mod whisper;
 mod ytdlp;
 
 use download_manager::{DownloadConfig, DownloadManager, Preset};
@@ -82,8 +83,8 @@ async fn get_or_init_download_manager(
         log::info!("Event forwarding task started");
 
         // Per-download state for aggregate progress calculation
-        let mut speed_map: HashMap<Uuid, u64>  = HashMap::new(); // id → bytes/s
-        let mut pct_map:   HashMap<Uuid, f64>  = HashMap::new(); // id → percent 0..100
+        let mut speed_map: HashMap<Uuid, u64> = HashMap::new(); // id → bytes/s
+        let mut pct_map: HashMap<Uuid, f64> = HashMap::new(); // id → percent 0..100
 
         while let Some(event) = event_rx.recv().await {
             // ── Side-effect: update window title + dock progress ──────────────
@@ -98,9 +99,9 @@ async fn get_or_init_download_manager(
                     update_dock_and_title(&app_handle, &speed_map, &pct_map);
                 }
                 DownlinkEvent::DownloadCompleted { id, .. }
-                | DownlinkEvent::DownloadFailed   { id, .. }
+                | DownlinkEvent::DownloadFailed { id, .. }
                 | DownlinkEvent::DownloadCanceled { id }
-                | DownlinkEvent::DownloadStopped  { id } => {
+                | DownlinkEvent::DownloadStopped { id } => {
                     speed_map.remove(id);
                     pct_map.remove(id);
                     update_dock_and_title(&app_handle, &speed_map, &pct_map);
@@ -269,6 +270,7 @@ pub struct FetchMetadataOptions {
 pub struct FetchMetadataResult {
     id: Uuid,
     url: String,
+    stream_url: Option<String>,
     is_playlist: bool,
     title: Option<String>,
     uploader: Option<String>,
@@ -373,8 +375,12 @@ fn add_urls(
         // execute_download strips and decodes them to inject yt-dlp flags.
         let effective_preset = {
             let mut p = options.preset_id.clone();
-            if options.subtitles_enabled { p.push_str("+subs"); }
-            if options.sponsorblock_enabled { p.push_str("+sb"); }
+            if options.subtitles_enabled {
+                p.push_str("+subs");
+            }
+            if options.sponsorblock_enabled {
+                p.push_str("+sb");
+            }
             p
         };
 
@@ -408,7 +414,7 @@ fn add_urls(
 
 #[tauri::command]
 async fn fetch_metadata(
-    _app: AppHandle,
+    app: AppHandle,
     state: State<'_, AppState>,
     url: String,
     _options: FetchMetadataOptions,
@@ -434,13 +440,14 @@ async fn fetch_metadata(
     // ── Cache miss: fetch ──────────────────────────────────────────
     let runner = build_ytdlp_runner(&state).await;
     let (meta, _output) = runner
-        .fetch_metadata(&first)
+        .fetch_metadata(&first, &app)
         .await
         .map_err(|e| format!("yt-dlp metadata failed: {e}"))?;
 
     let result = FetchMetadataResult {
         id: Uuid::nil(),
         url: meta.url,
+        stream_url: meta.stream_url,
         is_playlist: meta.is_playlist,
         title: meta.title,
         uploader: meta.uploader,
@@ -459,12 +466,17 @@ async fn fetch_metadata(
         if cache.len() >= 64 {
             cache.retain(|_, v| v.fetched_at.elapsed() < CACHE_TTL);
         }
-        cache.insert(first, CachedMeta { result: result.clone(), fetched_at: Instant::now() });
+        cache.insert(
+            first,
+            CachedMeta {
+                result: result.clone(),
+                fetched_at: Instant::now(),
+            },
+        );
     }
 
     Ok(result)
 }
-
 
 /// Phase-1 fast preview: returns title/uploader/thumbnail/duration in ~2-3s.
 /// Does NOT enumerate quality formats (that requires --dump-json).
@@ -500,6 +512,7 @@ async fn fast_fetch_metadata(
             let result = FetchMetadataResult {
                 id: Uuid::nil(),
                 url: meta.url,
+                stream_url: meta.stream_url,
                 is_playlist: meta.is_playlist,
                 title: meta.title,
                 uploader: meta.uploader,
@@ -516,7 +529,13 @@ async fn fast_fetch_metadata(
                 if cache.len() >= 64 {
                     cache.retain(|_, v| v.fetched_at.elapsed() < CACHE_TTL);
                 }
-                cache.insert(first, CachedMeta { result: result.clone(), fetched_at: Instant::now() });
+                cache.insert(
+                    first,
+                    CachedMeta {
+                        result: result.clone(),
+                        fetched_at: Instant::now(),
+                    },
+                );
             }
             Ok(Some(result))
         }
@@ -1298,9 +1317,95 @@ fn emit_app_ready(app: &AppHandle, yt_dlp_version: Option<String>, ffmpeg_versio
 // App Entry Point
 // ============================================================================
 
+#[derive(serde::Deserialize, serde::Serialize)]
+struct RawOEmbed {
+    title: Option<String>,
+    author_name: Option<String>,
+    thumbnail_url: Option<String>,
+    duration: Option<u64>,
+}
+
+#[tauri::command]
+async fn proxy_oembed_request(endpoint_url: String) -> Result<Option<RawOEmbed>, String> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(5))
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let res = client.get(&endpoint_url).send().await.map_err(|e| e.to_string())?;
+    
+    if !res.status().is_success() {
+        return Err(format!("Request failed with status: {}", res.status()));
+    }
+    
+    let data: RawOEmbed = res.json().await.map_err(|e| e.to_string())?;
+    Ok(Some(data))
+}
+
+
+// ============================================================================
+// Tauri Commands — AI Transcription
+// ============================================================================
+
+/// Check if whisper is available on this system.
+/// Returns the binary path as a string, or an empty string if not found.
+#[tauri::command]
+fn check_whisper() -> String {
+    whisper::check_whisper().unwrap_or_default()
+}
+
+/// Transcribe a completed download file.
+/// Priority: user's provider+key → bundled Groq key → local whisper.
+#[tauri::command]
+async fn transcribe_file(
+    state: State<'_, AppState>,
+    file_path: String,
+    model: Option<whisper::WhisperModel>,
+) -> Result<whisper::TranscriptionResult, String> {
+    let path = std::path::PathBuf::from(&file_path);
+    let model = model.unwrap_or(whisper::WhisperModel::Base);
+
+    let (user_key, provider) = {
+        let db_guard = state.db.lock().await;
+        let settings_manager = settings::SettingsManager::new(db_guard.conn());
+        match settings_manager.get_user_settings() {
+            Ok(s) => {
+                let key = s.transcription.api_key.trim().to_string();
+                let key = if key.is_empty() { None } else { Some(key) };
+                (key, s.transcription.provider)
+            }
+            Err(_) => (None, settings::TranscriptionProvider::Groq),
+        }
+    };
+
+    whisper::transcribe(&path, model, user_key.as_deref(), &provider)
+        .await
+        .map_err(|e| {
+            let kind = serde_json::to_string(&e.kind).unwrap_or_default();
+            format!("{kind}: {}", e.message)
+        })
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .register_uri_scheme_protocol("dlsniff", |ctx, request| {
+            use tauri::Emitter;
+            if let Some(query) = request.uri().query() {
+                if let Some(url_part) = query.split('&').find(|s| s.starts_with("url=")) {
+                    if let Ok(decoded) = urlencoding::decode(&url_part[4..]) {
+                        let _ = ctx.app_handle().emit("sniffed-url", serde_json::json!({ "url": decoded.into_owned() }));
+                    }
+                }
+            }
+            tauri::http::Response::builder()
+                .status(200)
+                .header("Access-Control-Allow-Origin", "*")
+                .body(Vec::new())
+                .unwrap()
+        })
+        .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
@@ -1312,6 +1417,70 @@ pub fn run() {
                     .level(log::LevelFilter::Info)
                     .build(),
             )?;
+
+            // Set explicit Edit menu so Cmd+C/Cmd+V work on macOS without WebKit popup
+            #[cfg(target_os = "macos")]
+            {
+                use tauri::menu::{Menu, PredefinedMenuItem, Submenu};
+                if let Ok(menu) = Menu::new(app.handle()) {
+                    // Add standard App menu (Downlink)
+                    if let Ok(app_submenu) = Submenu::with_items(
+                        app.handle(),
+                        "Downlink",
+                        true,
+                        &[
+                            &PredefinedMenuItem::services(app.handle(), None).unwrap(),
+                            &PredefinedMenuItem::separator(app.handle()).unwrap(),
+                            &PredefinedMenuItem::hide(app.handle(), None).unwrap(),
+                            &PredefinedMenuItem::hide_others(app.handle(), None).unwrap(),
+                            &PredefinedMenuItem::show_all(app.handle(), None).unwrap(),
+                            &PredefinedMenuItem::separator(app.handle()).unwrap(),
+                            &PredefinedMenuItem::quit(app.handle(), None).unwrap(),
+                        ],
+                    ) {
+                        let _ = menu.append(&app_submenu);
+                    }
+
+                    // Add standard Edit menu (critical for native Copy/Paste)
+                    if let Ok(edit_submenu) = Submenu::with_items(
+                        app.handle(),
+                        "Edit",
+                        true,
+                        &[
+                            &PredefinedMenuItem::undo(app.handle(), None).unwrap(),
+                            &PredefinedMenuItem::redo(app.handle(), None).unwrap(),
+                            &PredefinedMenuItem::separator(app.handle()).unwrap(),
+                            &PredefinedMenuItem::cut(app.handle(), None).unwrap(),
+                            &PredefinedMenuItem::copy(app.handle(), None).unwrap(),
+                            &PredefinedMenuItem::paste(app.handle(), None).unwrap(),
+                            &PredefinedMenuItem::select_all(app.handle(), None).unwrap(),
+                        ],
+                    ) {
+                        let _ = menu.append(&edit_submenu);
+                    }
+
+                    let _ = app.set_menu(menu);
+                }
+            }
+
+            // Initialize window vibrancy for the Apple aesthetic
+            let window = app.get_webview_window("main").unwrap();
+            #[cfg(target_os = "macos")]
+            {
+                use window_vibrancy::{
+                    apply_vibrancy, NSVisualEffectMaterial, NSVisualEffectState,
+                };
+                let _ = apply_vibrancy(
+                    &window,
+                    NSVisualEffectMaterial::HudWindow,
+                    Some(NSVisualEffectState::Active),
+                    None,
+                );
+            }
+            #[cfg(target_os = "windows")]
+            {
+                let _ = window_vibrancy::apply_mica(&window, None);
+            }
 
             // Initialize per-user dirs + SQLite
             let mut db = db::Db::open().map_err(|e| tauri::Error::Anyhow(e))?;
@@ -1398,6 +1567,10 @@ pub fn run() {
             set_window_title,
             // Fast preview
             fast_fetch_metadata,
+            proxy_oembed_request,
+            // AI Transcription
+            check_whisper,
+            transcribe_file,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

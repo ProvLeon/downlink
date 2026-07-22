@@ -25,7 +25,9 @@ jobs:
       release_upload_url: ${{ steps.create_release.outputs.upload_url }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
+        with:
+          ref: main
 
       - name: Get version from tag
         id: get_version
@@ -35,8 +37,9 @@ jobs:
 
       - name: Create Release
         id: create_release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
+          make_latest: true
           tag_name: ${{ steps.get_version.outputs.tag }}
           name: "Downlink ${{ steps.get_version.outputs.tag }}"
           body: |
@@ -87,13 +90,36 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/checkout@v7
         with:
-          node-version: "20"
-          cache: "npm"
+          ref: main
+
+      - name: Sync version from tag
+        shell: bash
+        run: |
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          VERSION="${TAG#v}"
+          echo "Syncing version to $VERSION"
+
+          # Patch Cargo.toml — perl works identically on GNU/Linux and BSD/macOS
+          perl -i -pe "s/^version = \"[^\"]*\"/version = \"$VERSION\"/ if !\$done++" src-tauri/Cargo.toml
+
+          # Patch tauri.conf.json — use jq for safe JSON manipulation
+          tmp=$(mktemp)
+          jq ".version = \"$VERSION\"" src-tauri/tauri.conf.json > "$tmp" && mv "$tmp" src-tauri/tauri.conf.json
+
+          # Patch package.json — use jq for safe JSON manipulation
+          tmp=$(mktemp)
+          jq ".version = \"$VERSION\"" package.json > "$tmp" && mv "$tmp" package.json
+
+          echo "Cargo.toml:       $(grep '^version' src-tauri/Cargo.toml | head -1)"
+          echo "tauri.conf.json:  $(jq -r '.version' src-tauri/tauri.conf.json)"
+          echo "package.json:     $(jq -r '.version' package.json)"
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -107,11 +133,12 @@ jobs:
           sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libssl-dev libgtk-3-dev librsvg2-dev
 
       - name: Install frontend dependencies
-        run: npm ci
+        run: bun install --frozen-lockfile
 
       - name: Create binaries directory
         shell: bash
         run: mkdir -p src-tauri/binaries
+
 
       # Download yt-dlp
       - name: Download yt-dlp (macOS)
@@ -160,12 +187,12 @@ jobs:
       - name: Download ffmpeg (Linux)
         if: matrix.platform == 'ubuntu-22.04'
         run: |
-          curl -L -o ffmpeg.tar.xz "https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz"
+          curl -L -o ffmpeg.tar.xz "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz"
           tar -xf ffmpeg.tar.xz
           FFMPEG_BIN=$(find . -name "ffmpeg" -type f -executable | head -1)
           mv "$FFMPEG_BIN" "src-tauri/binaries/ffmpeg-${{ matrix.binary_suffix }}"
           chmod +x "src-tauri/binaries/ffmpeg-${{ matrix.binary_suffix }}"
-          rm -rf ffmpeg.tar.xz ffmpeg-*-static
+          rm -rf ffmpeg.tar.xz ffmpeg-*
 
       - name: List binaries
         run: ls -la src-tauri/binaries/
@@ -191,13 +218,13 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
+          releaseId: ${{ needs.create-release.outputs.release_id }}
           tagName: ${{ github.event.inputs.tag || github.ref_name }}
           releaseName: "Downlink ${{ github.event.inputs.tag || github.ref_name }}"
           releaseBody: ""
           releaseDraft: false
           prerelease: false
-          includeUpdaterJson: true
-          updaterJsonKeepUniversal: true
+          includeUpdaterJson: false
           args: --target ${{ matrix.target }}
 
       - name: List generated signature files
@@ -245,8 +272,8 @@ jobs:
             echo "Uploaded $filename"
           done
 
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+      - name: Upload binaries to workflow artifact
+        uses: actions/upload-artifact@v7
         with:
           name: Downlink-${{ matrix.name }}
           path: |
@@ -270,7 +297,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Get version from tag
         id: get_version
@@ -281,7 +308,7 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: artifacts
 
@@ -299,18 +326,32 @@ jobs:
 
           echo "$ASSETS" > release_assets.json
 
-          # Extract download URLs for each platform
-          MACOS_ARM64_URL=$(echo "$ASSETS" | jq -r '.assets[] | select(.name | contains("aarch64") and contains(".app.tar.gz") and (contains(".sig") | not)) | .browser_download_url' | head -1)
-          MACOS_ARM64_SIG_URL=$(echo "$ASSETS" | jq -r '.assets[] | select(.name | contains("aarch64") and contains(".app.tar.gz.sig")) | .browser_download_url' | head -1)
+          VERSION="${{ steps.get_version.outputs.version }}"
 
-          MACOS_X64_URL=$(echo "$ASSETS" | jq -r '.assets[] | select(.name | contains("x64") and contains(".app.tar.gz") and (contains(".sig") | not)) | .browser_download_url' | head -1)
-          MACOS_X64_SIG_URL=$(echo "$ASSETS" | jq -r '.assets[] | select(.name | contains("x64") and contains(".app.tar.gz.sig")) | .browser_download_url' | head -1)
+          # Filter by version string first to avoid picking up stale old-version assets
+          # from prior failed/partial builds that may coexist in the same release.
+          MACOS_ARM64_URL=$(echo "$ASSETS" | jq -r --arg v "$VERSION" '.assets[] | select(.name | contains("aarch64") and contains(".app.tar.gz") and (contains(".sig") | not) and contains($v)) | .browser_download_url' | head -1)
+          MACOS_ARM64_SIG_URL=$(echo "$ASSETS" | jq -r --arg v "$VERSION" '.assets[] | select(.name | contains("aarch64") and contains(".app.tar.gz.sig") and contains($v)) | .browser_download_url' | head -1)
 
-          WINDOWS_URL=$(echo "$ASSETS" | jq -r '.assets[] | select(.name | contains("setup.exe") and (contains(".sig") | not)) | .browser_download_url' | head -1)
-          WINDOWS_SIG_URL=$(echo "$ASSETS" | jq -r '.assets[] | select(.name | contains("setup.exe.sig")) | .browser_download_url' | head -1)
+          # macOS tar.gz filenames don't embed the version — fall back without version filter
+          if [ -z "$MACOS_ARM64_URL" ] || [ "$MACOS_ARM64_URL" = "null" ]; then
+            MACOS_ARM64_URL=$(echo "$ASSETS" | jq -r '.assets[] | select(.name | contains("aarch64") and contains(".app.tar.gz") and (contains(".sig") | not)) | .browser_download_url' | head -1)
+            MACOS_ARM64_SIG_URL=$(echo "$ASSETS" | jq -r '.assets[] | select(.name | contains("aarch64") and contains(".app.tar.gz.sig")) | .browser_download_url' | head -1)
+          fi
 
-          LINUX_URL=$(echo "$ASSETS" | jq -r '.assets[] | select(.name | contains(".AppImage") and (contains(".sig") | not)) | .browser_download_url' | head -1)
-          LINUX_SIG_URL=$(echo "$ASSETS" | jq -r '.assets[] | select(.name | contains(".AppImage.sig")) | .browser_download_url' | head -1)
+          MACOS_X64_URL=$(echo "$ASSETS" | jq -r --arg v "$VERSION" '.assets[] | select(.name | contains("x64") and contains(".app.tar.gz") and (contains(".sig") | not) and contains($v)) | .browser_download_url' | head -1)
+          MACOS_X64_SIG_URL=$(echo "$ASSETS" | jq -r --arg v "$VERSION" '.assets[] | select(.name | contains("x64") and contains(".app.tar.gz.sig") and contains($v)) | .browser_download_url' | head -1)
+
+          if [ -z "$MACOS_X64_URL" ] || [ "$MACOS_X64_URL" = "null" ]; then
+            MACOS_X64_URL=$(echo "$ASSETS" | jq -r '.assets[] | select(.name | contains("x64") and contains(".app.tar.gz") and (contains(".sig") | not)) | .browser_download_url' | head -1)
+            MACOS_X64_SIG_URL=$(echo "$ASSETS" | jq -r '.assets[] | select(.name | contains("x64") and contains(".app.tar.gz.sig")) | .browser_download_url' | head -1)
+          fi
+
+          WINDOWS_URL=$(echo "$ASSETS" | jq -r --arg v "$VERSION" '.assets[] | select(.name | contains("setup.exe") and (contains(".sig") | not) and contains($v)) | .browser_download_url' | head -1)
+          WINDOWS_SIG_URL=$(echo "$ASSETS" | jq -r --arg v "$VERSION" '.assets[] | select(.name | contains("setup.exe.sig") and contains($v)) | .browser_download_url' | head -1)
+
+          LINUX_URL=$(echo "$ASSETS" | jq -r --arg v "$VERSION" '.assets[] | select(.name | contains(".AppImage") and (contains(".sig") | not) and contains($v)) | .browser_download_url' | head -1)
+          LINUX_SIG_URL=$(echo "$ASSETS" | jq -r --arg v "$VERSION" '.assets[] | select(.name | contains(".AppImage.sig") and contains($v)) | .browser_download_url' | head -1)
 
           echo "macos_arm64_url=$MACOS_ARM64_URL" >> $GITHUB_OUTPUT
           echo "macos_arm64_sig_url=$MACOS_ARM64_SIG_URL" >> $GITHUB_OUTPUT
@@ -416,3 +457,24 @@ jobs:
             "https://uploads.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID/assets?name=latest.json"
 
           echo "latest.json uploaded successfully!"
+
+      - name: Commit latest.json back to repo
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add latest.json
+          # Only commit if there are actual changes
+          if git diff --cached --quiet; then
+            echo "latest.json unchanged, skipping commit"
+          else
+            git commit -m "chore: update latest.json to ${{ steps.get_version.outputs.tag }} [skip ci]"
+            # Remote main may have moved forward while builds were running.
+            # Fetch + rebase our single commit on top before pushing.
+            git fetch origin refs/heads/main
+            git rebase FETCH_HEAD
+            git push origin HEAD:refs/heads/main
+            echo "latest.json committed to repo"
+          fi

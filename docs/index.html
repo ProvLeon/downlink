@@ -1,18 +1,22 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Downlink — Download Videos from YouTube and 1000+ Sites</title>
-    <meta name="description" content="A lightweight, cross-platform video downloader powered by yt-dlp. Download videos from YouTube and 1000+ sites. Free and open source.">
-    <link rel="icon" type="image/png" href="https://raw.githubusercontent.com/ProvLeon/downlink/main/public/downlink-square.png">
+    <meta name="description"
+        content="A lightweight, cross-platform video downloader powered by yt-dlp. Download videos from YouTube and 1000+ sites. Free and open source.">
+    <link rel="icon" type="image/png"
+        href="https://raw.githubusercontent.com/Orlixis/downlink/main/public/downlink-square.png">
 
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website">
-    <meta property="og:url" content="https://provleon.github.io/downlink/">
+    <meta property="og:url" content="https://orlixis.github.io/downlink/">
     <meta property="og:title" content="Downlink — Download Videos from Anywhere | Free">
-    <meta property="og:description" content="A fast, lightweight desktop app for downloading videos from YouTube and 1000+ websites. Powered by yt-dlp. Available for macOS, Windows, and Linux.">
-    <meta property="og:image" content="https://raw.githubusercontent.com/ProvLeon/downlink/main/docs/og-image.png">
+    <meta property="og:description"
+        content="A fast, lightweight desktop app for downloading videos from YouTube and 1000+ websites. Powered by yt-dlp. Available for macOS, Windows, and Linux.">
+    <meta property="og:image" content="https://raw.githubusercontent.com/Orlixis/downlink/main/docs/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta property="og:image:alt" content="Downlink - Download videos from anywhere. A fast, lightweight desktop app.">
@@ -20,10 +24,11 @@
 
     <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:url" content="https://provleon.github.io/downlink/">
+    <meta name="twitter:url" content="https://orlixis.github.io/downlink/">
     <meta name="twitter:title" content="Downlink — Download Videos from Anywhere | Free">
-    <meta name="twitter:description" content="A fast, lightweight desktop app for downloading videos from YouTube and 1000+ websites. Powered by yt-dlp. Available for macOS, Windows, and Linux.">
-    <meta name="twitter:image" content="https://raw.githubusercontent.com/ProvLeon/downlink/main/docs/og-image.png">
+    <meta name="twitter:description"
+        content="A fast, lightweight desktop app for downloading videos from YouTube and 1000+ websites. Powered by yt-dlp. Available for macOS, Windows, and Linux.">
+    <meta name="twitter:image" content="https://raw.githubusercontent.com/Orlixis/downlink/main/docs/og-image.png">
     <meta name="twitter:image:alt" content="Downlink - Download videos from anywhere. A fast, lightweight desktop app.">
     <style>
         :root {
@@ -277,7 +282,7 @@
 
         .download-grid {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
+            grid-template-columns: repeat(4, 1fr);
             gap: 20px;
         }
 
@@ -381,7 +386,7 @@
 
         .features-grid {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
+            grid-template-columns: repeat(4, 1fr);
             gap: 24px;
         }
 
@@ -520,22 +525,25 @@
         }
     </style>
 </head>
+
 <body>
     <header id="header">
         <div class="container">
             <div class="header-content">
                 <a href="/" class="logo">
-                    <img src="https://raw.githubusercontent.com/ProvLeon/downlink/main/public/downlink-square.png" alt="Downlink">
+                    <img src="https://raw.githubusercontent.com/Orlixis/downlink/main/public/downlink-square.png"
+                        alt="Downlink">
                     <span>Downlink</span>
                 </a>
                 <nav class="nav-links">
                     <a href="#downloads">Downloads</a>
                     <a href="#features">Features</a>
-                    <a href="https://github.com/ProvLeon/downlink" target="_blank">Documentation</a>
+                    <a href="https://github.com/Orlixis/downlink" target="_blank">Documentation</a>
                 </nav>
-                <a href="https://github.com/ProvLeon/downlink" target="_blank" class="github-btn">
+                <a href="https://github.com/Orlixis/downlink" target="_blank" class="github-btn">
                     <svg viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                        <path
+                            d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" />
                     </svg>
                     Star on GitHub
                 </a>
@@ -546,19 +554,22 @@
     <main>
         <section class="hero">
             <div class="container">
-                <div class="hero-badge" id="version-badge">Version <span id="latest-version">0.1.1</span> Available</div>
+                <div class="hero-badge" id="version-badge">Version <span id="latest-version">0.1.1</span> Available
+                </div>
                 <h1>Download videos<br><span>from anywhere</span></h1>
-                <p>A fast, lightweight desktop app</p> for downloading videos from YouTube and 1000+ websites. Powered by yt-dlp with a beautiful, intuitive interface.</p>
+                <p>A fast, lightweight desktop app</p> for downloading videos from YouTube and 1000+ websites. Powered
+                by yt-dlp with a beautiful, intuitive interface.</p>
                 <div class="hero-actions">
                     <a href="#downloads" class="btn btn-primary">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                            <polyline points="7 10 12 15 17 10"/>
-                            <line x1="12" y1="15" x2="12" y2="3"/>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                            <polyline points="7 10 12 15 17 10" />
+                            <line x1="12" y1="15" x2="12" y2="3" />
                         </svg>
                         Download for Free
                     </a>
-                    <a href="https://github.com/ProvLeon/downlink" target="_blank" class="btn btn-secondary">
+                    <a href="https://github.com/Orlixis/downlink" target="_blank" class="btn btn-secondary">
                         View Source
                     </a>
                 </div>
@@ -575,52 +586,63 @@
                     <div class="download-card" id="macos-card">
                         <div class="download-icon">
                             <svg viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
+                                <path
+                                    d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z" />
                             </svg>
                         </div>
                         <h3>macOS</h3>
                         <p class="subtitle">macOS 10.15 or later</p>
-                        <a id="macos-download-btn" href="https://github.com/ProvLeon/downlink/releases/latest" class="btn btn-primary">
+                        <!-- Chip badge — updated by JS after architecture detection -->
+                        <div id="macos-chip-badge" style="display:none;margin-bottom:10px;font-size:0.75rem;font-weight:600;letter-spacing:0.04em;padding:4px 10px;border-radius:999px;width:fit-content;margin-left:auto;margin-right:auto;"></div>
+                        <a id="macos-download-btn" href="https://github.com/Orlixis/downlink/releases/latest"
+                            class="btn btn-primary">
                             Download .dmg
                         </a>
                         <div class="alt-downloads">
-                            <a id="macos-arm-link" href="https://github.com/ProvLeon/downlink/releases/latest">Apple Silicon</a>
-                            <a id="macos-intel-link" href="https://github.com/ProvLeon/downlink/releases/latest">Intel</a>
+                            <a id="macos-arm-link" href="https://github.com/Orlixis/downlink/releases/latest">Apple Silicon (.dmg)</a>
+                            <a id="macos-intel-link" href="https://github.com/Orlixis/downlink/releases/latest">Intel (.dmg)</a>
                         </div>
                     </div>
 
                     <div class="download-card" id="windows-card">
                         <div class="download-icon">
                             <svg viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"/>
+                                <path
+                                    d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801" />
                             </svg>
                         </div>
                         <h3>Windows</h3>
                         <p class="subtitle">Windows 10 or later</p>
-                        <a id="windows-download-btn" href="https://github.com/ProvLeon/downlink/releases/latest" class="btn btn-primary">
+                        <a id="windows-download-btn" href="https://github.com/Orlixis/downlink/releases/latest"
+                            class="btn btn-primary">
                             Download .exe
                         </a>
                         <div class="alt-downloads">
-                            <a id="windows-exe-link" href="https://github.com/ProvLeon/downlink/releases/latest">.exe Installer</a>
-                            <a id="windows-msi-link" href="https://github.com/ProvLeon/downlink/releases/latest">.msi Package</a>
+                            <a id="windows-exe-link" href="https://github.com/Orlixis/downlink/releases/latest">.exe
+                                Installer</a>
+                            <a id="windows-msi-link" href="https://github.com/Orlixis/downlink/releases/latest">.msi
+                                Package</a>
                         </div>
                     </div>
 
                     <div class="download-card" id="linux-card">
                         <div class="download-icon">
                             <svg viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M12.503 0c-.155 0-.311.048-.44.144-.129.096-.219.236-.254.4-.035.163-.013.336.063.483.076.147.2.26.347.316l.072.027c.163.062.347.036.49-.067.143-.103.236-.267.254-.447.018-.18-.043-.36-.164-.49-.121-.13-.29-.207-.468-.207h-.027l.127-.159zm-1.127 1.597c-.155 0-.311.048-.44.144-.129.096-.219.236-.254.4-.035.163-.013.336.063.483.076.147.2.26.347.316l.072.027c.163.062.347.036.49-.067.143-.103.236-.267.254-.447.018-.18-.043-.36-.164-.49-.121-.13-.29-.207-.468-.207h-.027l.127-.159zM11.27 3.18c-1.659.013-3.282.62-4.565 1.706-1.284 1.086-2.149 2.579-2.431 4.194-.283 1.615.032 3.28.885 4.676.853 1.395 2.193 2.42 3.768 2.876l.001.002c.267.077.549.116.832.116.564 0 1.116-.153 1.601-.443.486-.29.886-.706 1.16-1.206.273-.5.41-1.065.397-1.637-.014-.572-.18-1.13-.481-1.617l-.002-.003c-.276-.446-.659-.815-1.112-1.072-.452-.258-.965-.397-1.488-.407-.523-.01-1.041.112-1.504.353-.463.241-.859.59-1.15 1.013-.292.423-.471.909-.52 1.414-.05.505.031 1.013.235 1.476.204.463.525.869.932 1.178.407.308.888.509 1.396.582.509.073 1.027.017 1.505-.163.478-.18.902-.476 1.232-.86.33-.383.555-.842.654-1.334.099-.492.068-1-.09-1.475-.158-.474-.436-.9-.808-1.235-.372-.334-.825-.566-1.316-.673-.491-.107-1.001-.085-1.482.064-.48.148-.912.42-1.252.788-.34.369-.578.824-.692 1.317-.114.493-.1 1.008.04 1.495.14.487.404.933.765 1.294.361.36.807.624 1.294.765.487.14 1.002.154 1.495.04.493-.114.948-.352 1.317-.692.368-.34.64-.772.788-1.252.149-.481.171-.991.064-1.482-.107-.491-.339-.944-.673-1.316-.335-.372-.761-.65-1.235-.808-.475-.158-.983-.189-1.475-.09-.492.099-.951.324-1.334.654-.384.33-.68.754-.86 1.232-.18.478-.236.996-.163 1.505.073.508.274.989.582 1.396.309.407.715.728 1.178.932.463.204.971.285 1.476.235.505-.049.991-.228 1.414-.52.423-.291.772-.687 1.013-1.15.241-.463.363-.981.353-1.504-.01-.523-.149-1.036-.407-1.488-.257-.453-.626-.836-1.072-1.112l-.003-.002c-.487-.301-1.045-.467-1.617-.481-.572-.013-1.137.124-1.637.397-.5.274-.916.674-1.206 1.16-.29.485-.443 1.037-.443 1.601 0 .283.039.565.116.832l.002.001c.456 1.575 1.481 2.915 2.876 3.768 1.396.853 3.061 1.168 4.676.885 1.615-.282 3.108-1.147 4.194-2.431 1.086-1.283 1.693-2.906 1.706-4.565.013-1.659-.574-3.29-1.649-4.586-1.075-1.296-2.561-2.178-4.172-2.479-1.61-.301-3.277.009-4.68.87-1.404.861-2.446 2.21-2.928 3.79l-.01.032c-.21.686-.32 1.401-.324 2.12-.004.72.095 1.437.295 2.127.2.69.499 1.343.888 1.937.389.594.862 1.122 1.403 1.567.541.444 1.144.8 1.792 1.055.648.255 1.334.404 2.03.44.697.037 1.396-.039 2.068-.224.672-.186 1.307-.479 1.882-.868.575-.39 1.084-.87 1.505-1.422.421-.553.749-1.17.968-1.829.22-.659.33-1.353.325-2.05-.004-.697-.122-1.39-.347-2.046-.225-.656-.558-1.268-.984-1.814-.426-.546-.94-1.019-1.522-1.4-.582-.38-1.223-.665-1.9-.844-.677-.179-1.379-.249-2.076-.208-.697.041-1.383.193-2.035.45-.651.257-1.26.615-1.802 1.064-.541.449-.008.98-1.382 1.58-.465.6-.831 1.27-1.082 1.988-.252.718-.384 1.473-.391 2.234-.007.761.11 1.52.347 2.241.237.722.593 1.399 1.052 2.003.459.604 1.016 1.128 1.646 1.549.63.42 1.326.732 2.061.923.735.19 1.5.257 2.259.197.759-.06 1.503-.247 2.197-.553.694-.306 1.329-.726 1.878-1.243.549-.517 1.004-1.124 1.345-1.796.341-.672.564-1.399.659-2.149.095-.75.06-1.51-.102-2.247-.163-.737-.453-1.44-.856-2.077-.403-.637-.912-1.199-1.505-1.662-.593-.462-1.262-.82-1.978-1.058-.716-.238-1.468-.353-2.223-.338-.755.015-1.503.16-2.207.429-.704.269-1.356.66-1.926 1.155-.57.496-1.052 1.091-1.423 1.759-.37.668-.624 1.401-.75 2.162-.125.761-.119 1.539.02 2.298.139.759.408 1.49.793 2.157.385.668.88 1.264 1.464 1.763.584.499 1.249.895 1.967 1.171.718.276 1.48.428 2.25.448.77.02 1.537-.093 2.265-.332.728-.24 1.407-.602 2.005-1.07.598-.468 1.107-1.035 1.505-1.678.398-.643.68-1.352.833-2.094.153-.742.175-1.508.066-2.258-.109-.75-.35-1.476-.71-2.14-.36-.665-.833-1.261-1.398-1.76-.565-.5-1.213-.895-1.916-1.167-.703-.273-1.449-.419-2.203-.43-.754-.012-1.504.111-2.212.362-.708.25-1.366.628-1.942 1.115-.576.487-1.062 1.076-1.434 1.738-.372.661-.627 1.386-.752 2.14-.125.755-.117 1.527.024 2.279.14.752.411 1.476.797 2.135.386.659.886 1.247 1.474 1.739.588.492 1.253.882 1.967 1.151.714.269 1.47.414 2.232.427.762.014 1.521-.106 2.237-.352.716-.246 1.381-.62 1.962-1.102.581-.481 1.071-1.065 1.448-1.722.377-.656.635-1.378.762-2.128.127-.75.121-1.52-.017-2.27-.139-.75-.41-1.472-.799-2.128-.388-.657-.89-1.243-1.48-1.733-.59-.489-1.257-.878-1.972-1.147-.715-.268-1.472-.413-2.234-.427-.762-.013-1.521.108-2.236.354-.715.247-1.38.62-1.96 1.103-.58.482-1.07 1.066-1.446 1.723-.376.657-.634 1.379-.761 2.13-.127.75-.121 1.52.017 2.27.139.75.41 1.472.799 2.129.388.656.89 1.242 1.481 1.732.59.489 1.257.878 1.973 1.146.715.269 1.472.413 2.234.427h.041z"/>
+                                <path
+                                    d="M12.503 0c-.155 0-.311.048-.44.144-.129.096-.219.236-.254.4-.035.163-.013.336.063.483.076.147.2.26.347.316l.072.027c.163.062.347.036.49-.067.143-.103.236-.267.254-.447.018-.18-.043-.36-.164-.49-.121-.13-.29-.207-.468-.207h-.027l.127-.159zm-1.127 1.597c-.155 0-.311.048-.44.144-.129.096-.219.236-.254.4-.035.163-.013.336.063.483.076.147.2.26.347.316l.072.027c.163.062.347.036.49-.067.143-.103.236-.267.254-.447.018-.18-.043-.36-.164-.49-.121-.13-.29-.207-.468-.207h-.027l.127-.159zM11.27 3.18c-1.659.013-3.282.62-4.565 1.706-1.284 1.086-2.149 2.579-2.431 4.194-.283 1.615.032 3.28.885 4.676.853 1.395 2.193 2.42 3.768 2.876l.001.002c.267.077.549.116.832.116.564 0 1.116-.153 1.601-.443.486-.29.886-.706 1.16-1.206.273-.5.41-1.065.397-1.637-.014-.572-.18-1.13-.481-1.617l-.002-.003c-.276-.446-.659-.815-1.112-1.072-.452-.258-.965-.397-1.488-.407-.523-.01-1.041.112-1.504.353-.463.241-.859.59-1.15 1.013-.292.423-.471.909-.52 1.414-.05.505.031 1.013.235 1.476.204.463.525.869.932 1.178.407.308.888.509 1.396.582.509.073 1.027.017 1.505-.163.478-.18.902-.476 1.232-.86.33-.383.555-.842.654-1.334.099-.492.068-1-.09-1.475-.158-.474-.436-.9-.808-1.235-.372-.334-.825-.566-1.316-.673-.491-.107-1.001-.085-1.482.064-.48.148-.912.42-1.252.788-.34.369-.578.824-.692 1.317-.114.493-.1 1.008.04 1.495.14.487.404.933.765 1.294.361.36.807.624 1.294.765.487.14 1.002.154 1.495.04.493-.114.948-.352 1.317-.692.368-.34.64-.772.788-1.252.149-.481.171-.991.064-1.482-.107-.491-.339-.944-.673-1.316-.335-.372-.761-.65-1.235-.808-.475-.158-.983-.189-1.475-.09-.492.099-.951.324-1.334.654-.384.33-.68.754-.86 1.232-.18.478-.236.996-.163 1.505.073.508.274.989.582 1.396.309.407.715.728 1.178.932.463.204.971.285 1.476.235.505-.049.991-.228 1.414-.52.423-.291.772-.687 1.013-1.15.241-.463.363-.981.353-1.504-.01-.523-.149-1.036-.407-1.488-.257-.453-.626-.836-1.072-1.112l-.003-.002c-.487-.301-1.045-.467-1.617-.481-.572-.013-1.137.124-1.637.397-.5.274-.916.674-1.206 1.16-.29.485-.443 1.037-.443 1.601 0 .283.039.565.116.832l.002.001c.456 1.575 1.481 2.915 2.876 3.768 1.396.853 3.061 1.168 4.676.885 1.615-.282 3.108-1.147 4.194-2.431 1.086-1.283 1.693-2.906 1.706-4.565.013-1.659-.574-3.29-1.649-4.586-1.075-1.296-2.561-2.178-4.172-2.479-1.61-.301-3.277.009-4.68.87-1.404.861-2.446 2.21-2.928 3.79l-.01.032c-.21.686-.32 1.401-.324 2.12-.004.72.095 1.437.295 2.127.2.69.499 1.343.888 1.937.389.594.862 1.122 1.403 1.567.541.444 1.144.8 1.792 1.055.648.255 1.334.404 2.03.44.697.037 1.396-.039 2.068-.224.672-.186 1.307-.479 1.882-.868.575-.39 1.084-.87 1.505-1.422.421-.553.749-1.17.968-1.829.22-.659.33-1.353.325-2.05-.004-.697-.122-1.39-.347-2.046-.225-.656-.558-1.268-.984-1.814-.426-.546-.94-1.019-1.522-1.4-.582-.38-1.223-.665-1.9-.844-.677-.179-1.379-.249-2.076-.208-.697.041-1.383.193-2.035.45-.651.257-1.26.615-1.802 1.064-.541.449-.008.98-1.382 1.58-.465.6-.831 1.27-1.082 1.988-.252.718-.384 1.473-.391 2.234-.007.761.11 1.52.347 2.241.237.722.593 1.399 1.052 2.003.459.604 1.016 1.128 1.646 1.549.63.42 1.326.732 2.061.923.735.19 1.5.257 2.259.197.759-.06 1.503-.247 2.197-.553.694-.306 1.329-.726 1.878-1.243.549-.517 1.004-1.124 1.345-1.796.341-.672.564-1.399.659-2.149.095-.75.06-1.51-.102-2.247-.163-.737-.453-1.44-.856-2.077-.403-.637-.912-1.199-1.505-1.662-.593-.462-1.262-.82-1.978-1.058-.716-.238-1.468-.353-2.223-.338-.755.015-1.503.16-2.207.429-.704.269-1.356.66-1.926 1.155-.57.496-1.052 1.091-1.423 1.759-.37.668-.624 1.401-.75 2.162-.125.761-.119 1.539.02 2.298.139.759.408 1.49.793 2.157.385.668.88 1.264 1.464 1.763.584.499 1.249.895 1.967 1.171.718.276 1.48.428 2.25.448.77.02 1.537-.093 2.265-.332.728-.24 1.407-.602 2.005-1.07.598-.468 1.107-1.035 1.505-1.678.398-.643.68-1.352.833-2.094.153-.742.175-1.508.066-2.258-.109-.75-.35-1.476-.71-2.14-.36-.665-.833-1.261-1.398-1.76-.565-.5-1.213-.895-1.916-1.167-.703-.273-1.449-.419-2.203-.43-.754-.012-1.504.111-2.212.362-.708.25-1.366.628-1.942 1.115-.576.487-1.062 1.076-1.434 1.738-.372.661-.627 1.386-.752 2.14-.125.755-.117 1.527.024 2.279.14.752.411 1.476.797 2.135.386.659.886 1.247 1.474 1.739.588.492 1.253.882 1.967 1.151.714.269 1.47.414 2.232.427.762.014 1.521-.106 2.237-.352.716-.246 1.381-.62 1.962-1.102.581-.481 1.071-1.065 1.448-1.722.377-.656.635-1.378.762-2.128.127-.75.121-1.52-.017-2.27-.139-.75-.41-1.472-.799-2.128-.388-.657-.89-1.243-1.48-1.733-.59-.489-1.257-.878-1.972-1.147-.715-.268-1.472-.413-2.234-.427-.762-.013-1.521.108-2.236.354-.715.247-1.38.62-1.96 1.103-.58.482-1.07 1.066-1.446 1.723-.376.657-.634 1.379-.761 2.13-.127.75-.121 1.52.017 2.27.139.75.41 1.472.799 2.129.388.656.89 1.242 1.481 1.732.59.489 1.257.878 1.973 1.146.715.269 1.472.413 2.234.427h.041z" />
                             </svg>
                         </div>
                         <h3>Linux</h3>
                         <p class="subtitle">Ubuntu, Fedora, Arch</p>
-                        <a id="linux-download-btn" href="https://github.com/ProvLeon/downlink/releases/latest" class="btn btn-primary">
+                        <a id="linux-download-btn" href="https://github.com/Orlixis/downlink/releases/latest"
+                            class="btn btn-primary">
                             Download AppImage
                         </a>
                         <div class="alt-downloads">
-                            <a id="linux-deb-link" href="https://github.com/ProvLeon/downlink/releases/latest">.deb</a>
-                            <a id="linux-rpm-link" href="https://github.com/ProvLeon/downlink/releases/latest">.rpm</a>
-                            <a id="linux-appimage-link" href="https://github.com/ProvLeon/downlink/releases/latest">AppImage</a>
+                            <a id="linux-deb-link" href="https://github.com/Orlixis/downlink/releases/latest">.deb</a>
+                            <a id="linux-rpm-link" href="https://github.com/Orlixis/downlink/releases/latest">.rpm</a>
+                            <a id="linux-appimage-link"
+                                href="https://github.com/Orlixis/downlink/releases/latest">AppImage</a>
                         </div>
                     </div>
                 </div>
@@ -636,67 +658,80 @@
                 <div class="features-grid">
                     <div class="feature">
                         <div class="feature-icon">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
                             </svg>
                         </div>
                         <h3>Paste and Go</h3>
-                        <p>Simply paste a URL and start downloading. Preview the video before you download with title, thumbnail, and format info.</p>
+                        <p>Simply paste a URL and start downloading. Preview the video before you download with title,
+                            thumbnail, and format info.</p>
                     </div>
                     <div class="feature">
                         <div class="feature-icon">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
-                                <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
-                                <line x1="12" y1="22.08" x2="12" y2="12"/>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                stroke-linecap="round" stroke-linejoin="round">
+                                <path
+                                    d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+                                <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+                                <line x1="12" y1="22.08" x2="12" y2="12" />
                             </svg>
                         </div>
                         <h3>Self-Contained</h3>
-                        <p>yt-dlp and ffmpeg are bundled inside the app. No additional software to install or configure.</p>
+                        <p>yt-dlp and ffmpeg are bundled inside the app. No additional software to install or configure.
+                        </p>
                     </div>
                     <div class="feature">
                         <div class="feature-icon">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <circle cx="12" cy="12" r="10"/>
-                                <polygon points="10 8 16 12 10 16 10 8"/>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="10" />
+                                <polygon points="10 8 16 12 10 16 10 8" />
                             </svg>
                         </div>
                         <h3>1000+ Sites</h3>
-                        <p>YouTube, Vimeo, Twitter, TikTok, Instagram, and hundreds more. If yt-dlp supports it, so does Downlink.</p>
+                        <p>YouTube, Vimeo, Twitter, TikTok, Instagram, and hundreds more. If yt-dlp supports it, so does
+                            Downlink.</p>
                     </div>
                     <div class="feature">
                         <div class="feature-icon">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <line x1="8" y1="6" x2="21" y2="6"/>
-                                <line x1="8" y1="12" x2="21" y2="12"/>
-                                <line x1="8" y1="18" x2="21" y2="18"/>
-                                <line x1="3" y1="6" x2="3.01" y2="6"/>
-                                <line x1="3" y1="12" x2="3.01" y2="12"/>
-                                <line x1="3" y1="18" x2="3.01" y2="18"/>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="8" y1="6" x2="21" y2="6" />
+                                <line x1="8" y1="12" x2="21" y2="12" />
+                                <line x1="8" y1="18" x2="21" y2="18" />
+                                <line x1="3" y1="6" x2="3.01" y2="6" />
+                                <line x1="3" y1="12" x2="3.01" y2="12" />
+                                <line x1="3" y1="18" x2="3.01" y2="18" />
                             </svg>
                         </div>
                         <h3>Playlist Support</h3>
-                        <p>Download entire playlists with one click. Each video is added to the queue and downloaded automatically.</p>
+                        <p>Download entire playlists with one click. Each video is added to the queue and downloaded
+                            automatically.</p>
                     </div>
                     <div class="feature">
                         <div class="feature-icon">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <circle cx="12" cy="12" r="10"/>
-                                <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="10" />
+                                <line x1="4.93" y1="4.93" x2="19.07" y2="19.07" />
                             </svg>
                         </div>
                         <h3>SponsorBlock</h3>
-                        <p>Automatically skip or remove sponsor segments, intros, and outros from your downloaded videos.</p>
+                        <p>Automatically skip or remove sponsor segments, intros, and outros from your downloaded
+                            videos.</p>
                     </div>
                     <div class="feature">
                         <div class="feature-icon">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
                             </svg>
                         </div>
                         <h3>Subtitles</h3>
-                        <p>Download and embed subtitles in multiple languages. Auto-generated captions are also supported.</p>
+                        <p>Download and embed subtitles in multiple languages. Auto-generated captions are also
+                            supported.</p>
                     </div>
                 </div>
             </div>
@@ -705,7 +740,8 @@
         <section class="screenshot">
             <div class="container">
                 <div class="screenshot-wrapper">
-                    <img src="https://raw.githubusercontent.com/ProvLeon/downlink/main/docs/screenshot.png" alt="Downlink Screenshot">
+                    <img src="https://raw.githubusercontent.com/Orlixis/downlink/main/docs/screenshot.png"
+                        alt="Downlink Screenshot">
                 </div>
             </div>
         </section>
@@ -715,30 +751,29 @@
         <div class="container">
             <div class="footer-content">
                 <div class="footer-links">
-                    <a href="https://github.com/ProvLeon/downlink" target="_blank">GitHub</a>
-                    <a href="https://github.com/ProvLeon/downlink/releases" target="_blank">Releases</a>
-                    <a href="https://github.com/ProvLeon/downlink/issues" target="_blank">Issues</a>
-                    <a href="https://github.com/ProvLeon/downlink/blob/main/LICENSE" target="_blank">License</a>
+                    <a href="https://github.com/Orlixis/downlink" target="_blank">GitHub</a>
+                    <a href="https://github.com/Orlixis/downlink/releases" target="_blank">Releases</a>
+                    <a href="https://github.com/Orlixis/downlink/issues" target="_blank">Issues</a>
+                    <a href="https://github.com/Orlixis/downlink/blob/main/LICENSE" target="_blank">License</a>
                 </div>
                 <p class="footer-credit">
-                    Powered by <a href="https://github.com/yt-dlp/yt-dlp" target="_blank">yt-dlp</a> and <a href="https://tauri.app" target="_blank">Tauri</a>
+                    Powered by <a href="https://github.com/yt-dlp/yt-dlp" target="_blank">yt-dlp</a> and <a
+                        href="https://tauri.app" target="_blank">Tauri</a>
                 </p>
             </div>
         </div>
     </footer>
 
     <script>
-        // GitHub repository info
-        const GITHUB_OWNER = 'ProvLeon';
-        const GITHUB_REPO = 'downlink';
-        const GITHUB_API_URL = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`;
+        // Fetch latest release info from the repository's latest.json to avoid GitHub API rate limits
+        const LATEST_JSON_URL = 'https://raw.githubusercontent.com/Orlixis/downlink/main/latest.json';
 
-        // Fetch latest release info from GitHub
         async function fetchLatestRelease() {
             try {
-                const response = await fetch(GITHUB_API_URL);
+                // Add a cache-buster so we don't get a stale latest.json
+                const response = await fetch(LATEST_JSON_URL + '?t=' + new Date().getTime());
                 if (!response.ok) {
-                    console.warn('Failed to fetch release info:', response.status);
+                    console.warn('Failed to fetch latest.json:', response.status);
                     return null;
                 }
                 return await response.json();
@@ -750,75 +785,139 @@
 
         // Update the page with latest release info
         async function updateReleaseInfo() {
-            const release = await fetchLatestRelease();
-            if (!release) return;
+            const data = await fetchLatestRelease();
+            if (!data || !data.version) return;
+
+            const version = data.version;
 
             // Update version badge
-            const version = release.tag_name.replace(/^v/, '');
             const versionSpan = document.getElementById('latest-version');
             if (versionSpan) {
                 versionSpan.textContent = version;
             }
 
-            // Find download assets
-            const assets = release.assets || [];
-
-            // Helper to find asset by pattern
-            const findAsset = (patterns) => {
-                for (const pattern of patterns) {
-                    const asset = assets.find(a => a.name.toLowerCase().includes(pattern.toLowerCase()));
-                    if (asset) return asset.browser_download_url;
-                }
-                return null;
-            };
-
-            // Update macOS download links
-            const macosArmUrl = findAsset(['aarch64.dmg', 'arm64.dmg', '_aarch64.dmg']);
-            const macosIntelUrl = findAsset(['x64.dmg', 'x86_64.dmg', '_x64.dmg']);
+            // Construct URLs manually based on Tauri's default naming conventions
+            const baseUrl = `https://github.com/Orlixis/downlink/releases/download/v${version}`;
+            
+            const macosArmUrl = `${baseUrl}/Downlink_aarch64.dmg`;
+            const macosIntelUrl = `${baseUrl}/Downlink_x64.dmg`;
+            
+            const windowsExeUrl = `${baseUrl}/Downlink_${version}_x64-setup.exe`;
+            const windowsMsiUrl = `${baseUrl}/Downlink_${version}_x64_en-US.msi`;
+            
+            const linuxAppImageUrl = `${baseUrl}/Downlink_${version}_amd64.AppImage`;
+            const linuxDebUrl = `${baseUrl}/downlink_${version}_amd64.deb`;
+            const linuxRpmUrl = `${baseUrl}/downlink-${version}-1.x86_64.rpm`;
 
             const macosDownloadBtn = document.getElementById('macos-download-btn');
             const macosArmLink = document.getElementById('macos-arm-link');
             const macosIntelLink = document.getElementById('macos-intel-link');
+            const macosChipBadge = document.getElementById('macos-chip-badge');
 
-            if (macosDownloadBtn && macosArmUrl) {
-                // Detect if user is on Apple Silicon
-                const isAppleSilicon = navigator.userAgent.includes('Mac') &&
-                    (navigator.userAgent.includes('ARM') || window.navigator.platform === 'MacIntel');
-                macosDownloadBtn.href = macosArmUrl; // Default to ARM
+            // Populate the alternate download links unconditionally
+            if (macosArmLink) macosArmLink.href = macosArmUrl;
+            if (macosIntelLink) macosIntelLink.href = macosIntelUrl;
+
+            // Detect Apple Silicon vs Intel via WebAssembly SIMD probe
+            if (macosDownloadBtn && navigator.userAgent.includes('Mac')) {
+                detectAppleSilicon().then(isAppleSilicon => {
+                    const targetUrl = isAppleSilicon ? macosArmUrl : macosIntelUrl;
+                    if (targetUrl) macosDownloadBtn.href = targetUrl;
+
+                    // Update button label
+                    if (isAppleSilicon) {
+                        macosDownloadBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Apple Silicon .dmg`;
+                    } else {
+                        macosDownloadBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Intel .dmg`;
+                    }
+
+                    // Show chip badge
+                    if (macosChipBadge) {
+                        macosChipBadge.style.display = 'block';
+                        if (isAppleSilicon) {
+                            macosChipBadge.textContent = '\u2713 Apple Silicon detected';
+                            macosChipBadge.style.background = 'rgba(59,130,246,0.15)';
+                            macosChipBadge.style.color = '#60a5fa';
+                            macosChipBadge.style.border = '1px solid rgba(59,130,246,0.3)';
+                        } else {
+                            macosChipBadge.textContent = '\u2713 Intel Mac detected';
+                            macosChipBadge.style.background = 'rgba(161,161,170,0.12)';
+                            macosChipBadge.style.color = '#a1a1aa';
+                            macosChipBadge.style.border = '1px solid rgba(161,161,170,0.25)';
+                        }
+                    }
+                });
+            } else if (macosDownloadBtn) {
+                // Non-Mac visitor — just point to ARM as the modern default
+                macosDownloadBtn.href = macosArmUrl;
             }
-            if (macosArmLink && macosArmUrl) macosArmLink.href = macosArmUrl;
-            if (macosIntelLink && macosIntelUrl) macosIntelLink.href = macosIntelUrl;
 
             // Update Windows download links
-            const windowsExeUrl = findAsset(['x64-setup.exe', 'x64_setup.exe', 'setup.exe']);
-            const windowsMsiUrl = findAsset(['.msi']);
-
             const windowsDownloadBtn = document.getElementById('windows-download-btn');
             const windowsExeLink = document.getElementById('windows-exe-link');
             const windowsMsiLink = document.getElementById('windows-msi-link');
 
-            if (windowsDownloadBtn && windowsExeUrl) {
-                windowsDownloadBtn.href = windowsExeUrl;
-            }
-            if (windowsExeLink && windowsExeUrl) windowsExeLink.href = windowsExeUrl;
-            if (windowsMsiLink && windowsMsiUrl) windowsMsiLink.href = windowsMsiUrl;
+            if (windowsDownloadBtn) windowsDownloadBtn.href = windowsExeUrl;
+            if (windowsExeLink) windowsExeLink.href = windowsExeUrl;
+            if (windowsMsiLink) windowsMsiLink.href = windowsMsiUrl;
 
             // Update Linux download links
-            const linuxAppImageUrl = findAsset(['.appimage', 'AppImage']);
-            const linuxDebUrl = findAsset(['.deb']);
-            const linuxRpmUrl = findAsset(['.rpm']);
-
             const linuxDownloadBtn = document.getElementById('linux-download-btn');
             const linuxAppImageLink = document.getElementById('linux-appimage-link');
             const linuxDebLink = document.getElementById('linux-deb-link');
             const linuxRpmLink = document.getElementById('linux-rpm-link');
+            const androidCard = document.getElementById('android-card');
 
-            if (linuxDownloadBtn && linuxAppImageUrl) linuxDownloadBtn.href = linuxAppImageUrl;
-            if (linuxAppImageLink && linuxAppImageUrl) linuxAppImageLink.href = linuxAppImageUrl;
-            if (linuxDebLink && linuxDebUrl) linuxDebLink.href = linuxDebUrl;
-            if (linuxRpmLink && linuxRpmUrl) linuxRpmLink.href = linuxRpmUrl;
+            if (linuxDownloadBtn) linuxDownloadBtn.href = linuxAppImageUrl;
+            if (linuxAppImageLink) linuxAppImageLink.href = linuxAppImageUrl;
+            if (linuxDebLink) linuxDebLink.href = linuxDebUrl;
+            if (linuxRpmLink) linuxRpmLink.href = linuxRpmUrl;
 
             console.log(`Updated download links to version ${version}`);
+        }
+
+        /**
+         * Detect Apple Silicon (aarch64) by attempting to compile a tiny WebAssembly
+         * module that uses a Fixed-Width SIMD instruction (v128.const).
+         * - Apple Silicon: WebKit/Chrome supports WASM SIMD → resolves true
+         * - Intel Mac:    SIMD not natively needed but is also supported in modern browsers.
+         *
+         * Because both chip types now support WASM SIMD in modern browsers, we use
+         * navigator.userAgentData (where available) as the primary signal, then fall
+         * back to a hardwareConcurrency + WASM SIMD combination heuristic.
+         */
+        async function detectAppleSilicon() {
+            // Primary: use navigator.userAgentData (Chrome 90+, Edge 90+)
+            if (navigator.userAgentData && navigator.userAgentData.getHighEntropyValues) {
+                try {
+                    const ua = await navigator.userAgentData.getHighEntropyValues(['architecture', 'platform']);
+                    if (ua.platform === 'macOS') {
+                        // 'arm' = Apple Silicon, 'x86' = Intel
+                        return ua.architecture === 'arm';
+                    }
+                } catch (_) { /* fall through */ }
+            }
+
+            // Secondary: compile a WASM module using SIMD — Apple Silicon engines
+            // enable it natively; older Intel Macs on Safari <16.4 will reject it.
+            try {
+                // Minimal WASM binary with a v128.const opcode (SIMD)
+                // (module (func (result v128) (v128.const i32x4 0 0 0 0)) (export "f" (func 0)))
+                const simdWasm = new Uint8Array([
+                    0x00,0x61,0x73,0x6d,0x01,0x00,0x00,0x00,0x01,0x05,0x01,
+                    0x60,0x00,0x01,0x7b,0x03,0x02,0x01,0x00,0x07,0x05,0x01,
+                    0x01,0x66,0x00,0x00,0x0a,0x0f,0x01,0x0d,0x00,0xfd,0x0c,
+                    0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+                    0x00,0x00,0x00,0x00,0x00,0x0b
+                ]);
+                await WebAssembly.compile(simdWasm);
+                // SIMD accepted — likely Apple Silicon (or a modern Intel browser).
+                // Use core count as a tiebreaker: M-series chips typically have 8–12+.
+                return navigator.hardwareConcurrency >= 8;
+            } catch (_) {
+                // SIMD rejected → older Intel Safari → definitely Intel
+                return false;
+            }
         }
 
         // Initialize release info on page load
@@ -842,7 +941,8 @@
 
         if (platform.includes('mac')) {
             macosCard.classList.add('recommended');
-        } else if (platform.includes('win')) {
+        } else if (platform.includes('android')) {
+            androidCard.classList.add('recommended');        } else if (platform.includes('win')) {
             windowsCard.classList.add('recommended');
         } else if (platform.includes('linux')) {
             linuxCard.classList.add('recommended');
@@ -863,4 +963,5 @@
         });
     </script>
 </body>
+
 </html>

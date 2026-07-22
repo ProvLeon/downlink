@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import {
   X,
   Settings,
@@ -12,9 +12,14 @@ import {
   FolderOpen,
   Save,
   Loader2,
+  Mic,
+  ExternalLink,
+  Check,
 } from "lucide-react";
-import type { UserSettings, AppUpdateInfo } from "../types";
+import type { UserSettings, AppUpdateInfo, TranscriptionProvider } from "../types";
+import { TRANSCRIPTION_PROVIDERS } from "../types";
 import { AppUpdater } from "./AppUpdater";
+import { useModalAnimation } from "../hooks/useModalAnimation";
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -29,15 +34,16 @@ interface SettingsModalProps {
   initialTab?: TabId;
 }
 
-type TabId = "general" | "formats" | "sponsorblock" | "subtitles" | "updates" | "network";
+type TabId = "general" | "formats" | "sponsorblock" | "subtitles" | "updates" | "network" | "transcription";
 
-const TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
-  { id: "general", label: "General", icon: Settings },
-  { id: "formats", label: "Formats", icon: FileVideo },
-  { id: "sponsorblock", label: "SponsorBlock", icon: Scissors },
-  { id: "subtitles", label: "Subtitles", icon: Subtitles },
-  { id: "updates", label: "Updates", icon: RefreshCw },
-  { id: "network", label: "Network", icon: Globe },
+const TABS: { id: TabId; label: string; icon: any }[] = [
+  { id: "general",       label: "General",       icon: Settings },
+  { id: "formats",       label: "Formats",       icon: FileVideo },
+  { id: "sponsorblock",  label: "SponsorBlock",  icon: Scissors },
+  { id: "subtitles",     label: "Subtitles",     icon: Subtitles },
+  { id: "updates",       label: "Updates",       icon: RefreshCw },
+  { id: "network",       label: "Network",       icon: Globe },
+  { id: "transcription", label: "Transcription", icon: Mic },
 ];
 
 const SPONSORBLOCK_CATEGORIES = [
@@ -65,6 +71,19 @@ export function SettingsModal({
   const [localSettings, setLocalSettings] = useState<UserSettings | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const modalRef = useRef<HTMLDivElement>(null);
+  const backdropRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  const { renderState } = useModalAnimation({
+    isOpen,
+    onClose,
+    targetId: "settings-button",
+    modalRef,
+    backdropRef,
+    contentRef,
+  });
 
   // Initialize local settings when modal opens; jump to initialTab if provided
   useEffect(() => {
@@ -146,6 +165,15 @@ export function SettingsModal({
     []
   );
 
+  const updateTranscription = useCallback(
+    <K extends keyof UserSettings["transcription"]>(key: K, value: UserSettings["transcription"][K]) => {
+      setLocalSettings((prev) =>
+        prev ? { ...prev, transcription: { ...prev.transcription, [key]: value } } : prev
+      );
+    },
+    []
+  );
+
   const toggleSponsorblockCategory = useCallback((category: string) => {
     setLocalSettings((prev) => {
       if (!prev) return prev;
@@ -160,27 +188,37 @@ export function SettingsModal({
     });
   }, []);
 
-  if (!isOpen) return null;
+  if (!renderState) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-3xl rounded-2xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-zinc-200 px-6 py-4 dark:border-zinc-800">
-          <h2 className="text-lg font-semibold">Settings</h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      {/* Backdrop */}
+      <div 
+        ref={backdropRef}
+        className="fixed inset-0 bg-black/40 backdrop-blur-sm"
+        onClick={onClose}
+      />
+      <div 
+        ref={modalRef}
+        className="relative z-10 flex flex-col max-h-[85vh] w-full max-w-3xl overflow-hidden rounded-2xl border border-zinc-200 bg-white/70 shadow-xl backdrop-blur-xl dark:border-zinc-800 dark:bg-zinc-900/90"
+      >
+        <div ref={contentRef} className="flex flex-1 flex-col overflow-hidden">
+          {/* Header */}
+          <div className="flex items-center justify-between border-b border-zinc-200 px-6 py-4 dark:border-zinc-800">
+            <h2 className="text-lg font-semibold">Settings</h2>
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
 
         {/* Content */}
-        <div className="flex min-h-[400px]">
+        <div className="flex flex-1 overflow-hidden min-h-[400px]">
           {/* Sidebar */}
-          <div className="w-48 shrink-0 border-r border-zinc-200 p-4 dark:border-zinc-800">
+          <div className="w-48 shrink-0 overflow-y-auto border-r border-zinc-200 p-4 dark:border-zinc-800 custom-scrollbar">
             <nav className="flex flex-col gap-1">
               {TABS.map((tab) => {
                 const Icon = tab.icon;
@@ -203,7 +241,7 @@ export function SettingsModal({
           </div>
 
           {/* Main content */}
-          <div className="flex-1 overflow-y-auto p-6">
+          <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
             {localSettings && (
               <>
                 {/* General Tab */}
@@ -451,46 +489,6 @@ export function SettingsModal({
                         currentVersion={currentVersion}
                       />
                     </div>
-
-                    <div className="border-t border-zinc-200 dark:border-zinc-800 pt-6">
-                      <h3 className="text-sm font-semibold mb-3">Tool Updates</h3>
-
-                      <label className="flex items-center gap-3">
-                        <input
-                          type="checkbox"
-                          checked={localSettings.updates.auto_update_ytdlp}
-                          onChange={(e) => updateUpdates("auto_update_ytdlp", e.target.checked)}
-                          className="h-4 w-4 rounded"
-                        />
-                        <span className="text-sm">Auto-update yt-dlp</span>
-                      </label>
-
-                      <label className="flex items-center gap-3 mt-3">
-                        <input
-                          type="checkbox"
-                          checked={localSettings.updates.auto_update_ffmpeg}
-                          onChange={(e) => updateUpdates("auto_update_ffmpeg", e.target.checked)}
-                          className="h-4 w-4 rounded"
-                        />
-                        <span className="text-sm">Auto-update ffmpeg</span>
-                      </label>
-
-                      <div className="mt-4">
-                        <label className="mb-2 block text-sm font-medium">
-                          Check Interval (hours)
-                        </label>
-                        <input
-                          type="number"
-                          min={1}
-                          max={168}
-                          value={localSettings.updates.check_interval_hours}
-                          onChange={(e) =>
-                            updateUpdates("check_interval_hours", parseInt(e.target.value) || 24)
-                          }
-                          className="w-24 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-800 dark:bg-zinc-950"
-                        />
-                      </div>
-                    </div>
                   </div>
                 )}
 
@@ -564,6 +562,75 @@ export function SettingsModal({
                 )}
               </>
             )}
+
+            {activeTab === "transcription" && localSettings && (
+              <>
+                <div className="mb-6">
+                  <h3 className="text-sm font-semibold uppercase tracking-wider text-zinc-500">
+                    AI Transcription
+                  </h3>
+                  <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+                    Downlink can generate subtitles automatically. It uses platform subtitles when available,
+                    falls back to a built-in free AI, or you can use your own API key for maximum speed and privacy.
+                  </p>
+                </div>
+
+                <div className="space-y-6">
+                  <div>
+                    <label className="mb-2 block text-sm font-medium">Provider</label>
+                    <div className="grid gap-3 sm:grid-cols-1 md:grid-cols-3">
+                      {TRANSCRIPTION_PROVIDERS.map((provider) => (
+                        <button
+                          key={provider.id}
+                          type="button"
+                          onClick={() => updateTranscription("provider", provider.id)}
+                          className={`relative flex flex-col items-start gap-1 rounded-xl border p-4 text-left transition-all ${
+                            localSettings.transcription.provider === provider.id
+                              ? "border-blue-500 bg-blue-50 dark:border-blue-500 dark:bg-blue-500/10"
+                              : "border-zinc-200 bg-white hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:border-zinc-700"
+                          }`}
+                        >
+                          <div className="flex w-full items-center justify-between">
+                            <span className="font-medium text-sm">{provider.label}</span>
+                            {localSettings.transcription.provider === provider.id && (
+                              <Check className="h-4 w-4 text-blue-500" />
+                            )}
+                          </div>
+                          <span className="text-xs text-zinc-500">{provider.note}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="mb-2 flex items-center justify-between text-sm font-medium">
+                      <span>API Key (Optional)</span>
+                      {localSettings.transcription.provider && (
+                        <a
+                          href={TRANSCRIPTION_PROVIDERS.find(p => p.id === localSettings.transcription.provider)?.keyLink}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex items-center gap-1 text-xs text-blue-500 hover:underline"
+                        >
+                          Get key: {TRANSCRIPTION_PROVIDERS.find(p => p.id === localSettings.transcription.provider)?.keyLabel}
+                          <ExternalLink className="h-3 w-3" />
+                        </a>
+                      )}
+                    </label>
+                    <input
+                      type="password"
+                      value={localSettings.transcription.api_key}
+                      onChange={(e) => updateTranscription("api_key", e.target.value)}
+                      placeholder={`Paste your ${TRANSCRIPTION_PROVIDERS.find(p => p.id === localSettings.transcription.provider)?.label} API key here...`}
+                      className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-800 dark:bg-zinc-950"
+                    />
+                    <p className="mt-2 text-xs text-zinc-500">
+                      If left empty, Downlink will try to use its bundled community key. Adding your own key avoids rate limits.
+                    </p>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
 
@@ -597,6 +664,7 @@ export function SettingsModal({
               )}
             </button>
           </div>
+        </div>
         </div>
       </div>
     </div>

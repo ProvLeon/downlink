@@ -1,8 +1,9 @@
 "use client";
 
 import Image from "next/image";
-import { Settings, Loader2, ClipboardPaste, X, AlertCircle } from "lucide-react";
+import { Settings, Loader2, ClipboardPaste, X, AlertCircle, CloudDownload } from "lucide-react";
 import { useCallback, useEffect, useRef } from "react";
+import type { UpdateAvailableState } from "../hooks/useDownlink";
 
 interface HeaderBarProps {
   urlInput: string;
@@ -14,6 +15,8 @@ interface HeaderBarProps {
   inputRef?: React.RefObject<HTMLTextAreaElement | null>;
   /** Number of valid URLs extracted from the input */
   urlCount?: number;
+  updateState?: UpdateAvailableState;
+  onUpdateClick?: () => void;
 }
 
 export function HeaderBar({
@@ -25,6 +28,8 @@ export function HeaderBar({
   isLoading = false,
   inputRef,
   urlCount = 0,
+  updateState,
+  onUpdateClick,
 }: HeaderBarProps) {
   const hasInput = urlInput.trim().length > 0;
   // Text entered but no valid URLs parsed — warn the user
@@ -55,10 +60,16 @@ export function HeaderBar({
   );
 
   return (
-    <div className="flex flex-col border-b border-zinc-800/80 bg-zinc-950">
-      <div className="flex items-start gap-2.5 px-3 py-2.5">
+    <div className="relative flex flex-col border-b border-zinc-800/80 bg-transparent">
+      {/* Absolute background drag region */}
+      <div 
+        data-tauri-drag-region="true" 
+        className="absolute inset-0" 
+      />
+      
+      <div className="relative flex items-start gap-2.5 pr-3 pl-[80px] py-3 pointer-events-none">
         {/* Logo */}
-        <div className="flex-shrink-0 pt-0.5">
+        <div className="flex-shrink-0 pt-0.5 pointer-events-auto">
           <Image
             src="/downlink-square.png"
             alt="Downlink"
@@ -70,7 +81,7 @@ export function HeaderBar({
         </div>
 
         {/* Auto-growing textarea */}
-        <div className="relative flex-1">
+        <div className="relative flex-1 pointer-events-auto">
           <textarea
             ref={resolvedRef}
             value={urlInput}
@@ -148,11 +159,69 @@ export function HeaderBar({
           </div>
         </div>
 
+        {/* Update Icon */}
+        {updateState?.available && !updateState?.dismissed && (
+          <button
+            id="update-button"
+            type="button"
+            onClick={onUpdateClick}
+            className="group relative flex h-7 w-7 items-center justify-center rounded-md text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-white pointer-events-auto"
+            title={updateState.downloading && updateState.downloadProgress 
+              ? `Downloading update: ${Math.min(100, Math.round((updateState.downloadProgress.downloaded / (updateState.downloadProgress.total || 1)) * 100))}%`
+              : "Update available"
+            }
+          >
+            {updateState.downloading ? (
+              <div className="relative flex h-5 w-5 items-center justify-center">
+                <svg className="absolute inset-0 h-full w-full -rotate-90 transform text-blue-500" viewBox="0 0 20 20">
+                  <circle
+                    className="opacity-20"
+                    cx="10"
+                    cy="10"
+                    r="8"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    fill="none"
+                  />
+                  <circle
+                    className="transition-all duration-300 ease-out"
+                    cx="10"
+                    cy="10"
+                    r="8"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    fill="none"
+                    strokeDasharray={`${2 * Math.PI * 8}`}
+                    strokeDashoffset={`${
+                      2 * Math.PI * 8 -
+                      ((updateState.downloadProgress?.total
+                        ? updateState.downloadProgress.downloaded / updateState.downloadProgress.total
+                        : 0.5) *
+                        (2 * Math.PI * 8))
+                    }`}
+                    strokeLinecap="round"
+                  />
+                </svg>
+                <CloudDownload className="h-2.5 w-2.5 text-blue-400" />
+              </div>
+            ) : (
+              <>
+                <CloudDownload className="h-4 w-4" />
+                <span className="absolute right-1 top-1 flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75"></span>
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-red-500"></span>
+                </span>
+              </>
+            )}
+          </button>
+        )}
+
         {/* Settings button */}
         <button
+          id="settings-button"
           type="button"
           onClick={onSettingsClick}
-          className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-white"
+          className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-white pointer-events-auto"
           title="Settings"
           aria-label="Open settings"
         >

@@ -1,23 +1,23 @@
 {
-  "version": "0.1.12",
-  "notes": "See the changelog at https://github.com/ProvLeon/downlink/releases/tag/v0.1.2",
-  "pub_date": "2026-01-06T16:12:33Z",
+  "version": "0.1.39",
+  "notes": "See the changelog at https://github.com/Orlixis/downlink/releases/tag/v0.1.39",
+  "pub_date": "2026-07-22T23:26:04Z",
   "platforms": {
     "darwin-aarch64": {
-      "signature": "",
-      "url": "https://github.com/ProvLeon/downlink/releases/download/v0.1.2/Downlink_aarch64.app.tar.gz"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSZ2dKalFhbkkvaFhPQ0l4OXRySE5nd2I0OXNqbnh3bGhUV3pCK1B1N3hoMUxGV1BpZFlrNXhHQ294Z3I1bmVrREFqejhqS3Y2SG4xTU8yaUw0QUgxWlUwdXJXZUNhOHdVPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg0NzYxOTY2CWZpbGU6RG93bmxpbmsuYXBwLnRhci5negpvMGJqZFdTZFIyRWsxMy9LaWV3eFAxZGhpVEVNSG5OekwycW9RbzM1VmJpMGNtQlQwNkw0M0N2VHlFWnVGYjNmWkxHNDR2d29NcUJlWGFsUmRGNkpBUT09Cg==",
+      "url": "https://github.com/Orlixis/downlink/releases/download/v0.1.39/Downlink_aarch64.app.tar.gz"
     },
     "darwin-x86_64": {
-      "signature": "",
-      "url": "https://github.com/ProvLeon/downlink/releases/download/v0.1.2/Downlink_x64.app.tar.gz"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSZ2dKalFhbkkvaGQ2VjVRbHBZQnNqcVhOdDR4MmVPbzkzemFjcUR1NlVFWmNseDc0NXpuMXY5dlFJNTdCODBTUjArRVVZZWdkaDdSYm9pL1lhS2xIclNrOEEzbnFXb1FRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg0NzYxNzczCWZpbGU6RG93bmxpbmsuYXBwLnRhci5negpoQVF4dm5FeGRwMDV3amgzWDF0TXViK2hqWXdWTDI1bnRTekQxSy96S3dLQTBlRlQ3bEM4cFBKaHk0MTVGMFdOZWIvcmZ2TDBCVlZ0ZTdiM3NlVnlBdz09Cg==",
+      "url": "https://github.com/Orlixis/downlink/releases/download/v0.1.39/Downlink_x64.app.tar.gz"
     },
     "linux-x86_64": {
-      "signature": "",
-      "url": "https://github.com/ProvLeon/downlink/releases/download/v0.1.2/Downlink_0.1.2_amd64.AppImage"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSZ2dKalFhbkkvaGVMcUh5M3ByaVJHZ1IydHM4NXpWSVBIZVh3YW8vZit1b1dEU0lyVXFCOWh3aWpFTE9XS05rcnVWaFRteVUzRWJ2emIwbTFlQWVjbjVHTlp6QXF2THdZPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg0NzYyNzE1CWZpbGU6RG93bmxpbmtfMC4xLjM5X2FtZDY0LkFwcEltYWdlClhiWWVvSUVITks5ZWJvd0pBTzUwRmZOUERXVXhnYUthQUp4Rm14L1dreUlvZnNXSDU2RGZsUUh0bXI2b0VZeXAwTFdoSFZPQU1kN2R6ekxZYXl5ekN3PT0K",
+      "url": "https://github.com/Orlixis/downlink/releases/download/v0.1.39/Downlink_0.1.39_amd64.AppImage"
     },
     "windows-x86_64": {
-      "signature": "",
-      "url": "https://github.com/ProvLeon/downlink/releases/download/v0.1.2/Downlink_0.1.2_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSZ2dKalFhbkkvaFhaZkwwZENHYzBueGp4d3Z0ejJjangvQ1h2WExWQWs0NlppcmpuL3RmQ1ljbVhNUWMzT2J4cUQrL0grMzFHdjIwdVhiSG12TytwQlVpL293R1NmUGdvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg0NzYyMTc5CWZpbGU6RG93bmxpbmtfMC4xLjM5X3g2NC1zZXR1cC5leGUKVlVDWnMxRXN0RGFHYkkxckhXMEl2VmE3dkNsdlpLbDNIWFN2UXZiREgyY3huR3BReXd3RFVkODJKMUtva2RsV0tNU05WRnFLMEpWbGpsN1RWMENYQXc9PQo=",
+      "url": "https://github.com/Orlixis/downlink/releases/download/v0.1.39/Downlink_0.1.39_x64-setup.exe"
     }
   }
 }

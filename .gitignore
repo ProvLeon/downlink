@@ -57,4 +57,6 @@ next-env.d.ts
 # *LIST.md
 temp_auto_push.bat
 temp_interactive_push.bat
-branch_structure.json
+tauri.key.pub
+tauri.key
+*.lock
