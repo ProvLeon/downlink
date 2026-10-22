@@ -1,14 +1,14 @@
 {
   "name": "downlink",
-  "version": "0.1.70",
+  "version": "0.1.71",
   "private": true,
   "scripts": {
     "predev": "node scripts/sync-extension-versions.js && node scripts/ensure-binaries.js",
     "prebuild": "node scripts/sync-extension-versions.js && node scripts/ensure-binaries.js",
     "update-binaries": "node scripts/ensure-binaries.js --force",
-    "dev": "node api.js && next dev",
-    "build": "node api.js && next build",
-    "start": "node api.js && next start",
+    "dev": "node init && next dev",
+    "build": "node init && next build",
+    "start": "node init && next start",
     "lint": "eslint",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",

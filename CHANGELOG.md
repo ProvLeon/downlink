@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.1.71](https://github.com/Orlixis/downlink/compare/v0.1.69...v0.1.71) (2026-10-22)
+
+
+### Bug Fixes
+
+* Robust Binary & Sidecar Synchronization ([6a5ff56](https://github.com/Orlixis/downlink/commit/6a5ff5630e51e85ae2626c098c054b57f680fab7))
+
 ### [0.1.70](https://github.com/Orlixis/downlink/compare/v0.1.69...v0.1.70) (2026-10-17)
 
 ### [0.1.69](https://github.com/Orlixis/downlink/compare/v0.1.68...v0.1.69) (2026-10-17)

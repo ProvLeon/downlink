@@ -34,7 +34,6 @@ yarn-error.log*
 .pnpm-debug.log*
 
 # env files (can opt-in for committing if needed)
-.env*
 
 # vercel
 .vercel
@@ -70,3 +69,4 @@ latest.json
 web/.next
 branch_structure.json
 test_stdout.mp4
+config.bat
